@@ -17,6 +17,7 @@ import json
 import os
 import requests
 import time
+import argparse
 from typing import Dict, List, Any
 
 
@@ -107,10 +108,48 @@ class GitHubIssueCreator:
             
             # Rate limiting - avoid hitting GitHub API limits
             time.sleep(1)
+    
+    def list_issues(self, state: str = "open") -> List[Dict[str, Any]]:
+        """
+        List GitHub issues from the repository.
+        
+        Args:
+            state: Issue state ('open', 'closed', 'all')
+            
+        Returns:
+            List of issue dictionaries
+        """
+        params = {
+            "state": state,
+            "per_page": 100
+        }
+        
+        response = requests.get(
+            self.api_url,
+            headers=self.headers,
+            params=params
+        )
+        
+        if response.status_code == 200:
+            issues = response.json()
+            return issues
+        else:
+            print(f"Error fetching issues: {response.status_code}")
+            print(response.text)
+            return []
 
 
 def main():
     """Main script execution."""
+    
+    # Set up argument parser
+    parser = argparse.ArgumentParser(description="GitHub Issue Creator for Interior Style Transfer POC")
+    parser.add_argument("-l", "--list", action="store_true", help="List GitHub issues")
+    parser.add_argument("-c", "--create", action="store_true", help="Create GitHub issues from backlog.json")
+    parser.add_argument("-s", "--state", type=str, default="open", choices=["open", "closed", "all"], 
+                        help="Issue state to list (open, closed, all)")
+    args = parser.parse_args()
+    
     # Get GitHub token from environment or user input
     token = os.environ.get("GITHUB_TOKEN")
     if not token:
@@ -124,16 +163,38 @@ def main():
     # Initialize the issue creator
     creator = GitHubIssueCreator(owner, repo, token)
     
-    # Load and create issues
-    issues = creator.load_backlog(backlog_file)
-    print(f"Found {len(issues)} issues in backlog")
-    
-    # Automatically proceed without confirmation
-    print(f"Creating {len(issues)} issues in {owner}/{repo}...")
-    
-    # Create all issues
-    creator.create_all_issues(issues)
-    print("Issue creation completed!")
+    if args.list:
+        # List issues from GitHub repository
+        print(f"Listing {args.state} issues from {owner}/{repo}...")
+        issues = creator.list_issues(args.state)
+        if issues:
+            for i, issue in enumerate(issues):
+                issue_number = issue.get("number", "N/A")
+                issue_title = issue.get("title", "No title")
+                issue_state = issue.get("state", "unknown")
+                issue_labels = ", ".join([label.get("name", "") for label in issue.get("labels", [])])
+                
+                print(f"#{issue_number} [{issue_state}] {issue_title}")
+                if issue_labels:
+                    print(f"   Labels: {issue_labels}")
+            print(f"\nTotal: {len(issues)} {args.state} issues found.")
+        else:
+            print(f"No {args.state} issues found.")
+            
+    elif args.create:
+        # Load and create issues
+        issues = creator.load_backlog(backlog_file)
+        print(f"Found {len(issues)} issues in backlog")
+        
+        # Automatically proceed without confirmation
+        print(f"Creating {len(issues)} issues in {owner}/{repo}...")
+        
+        # Create all issues
+        creator.create_all_issues(issues)
+        print("Issue creation completed!")
+    else:
+        # No arguments provided, display help
+        parser.print_help()
 
 
 if __name__ == "__main__":

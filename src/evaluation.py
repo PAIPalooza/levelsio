@@ -11,6 +11,7 @@ import logging
 from typing import Dict, Tuple, Union, Optional, List, Any
 from PIL import Image
 import matplotlib.pyplot as plt
+import io
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -171,6 +172,60 @@ class VisualEvaluationService:
         
         return metrics
     
+    def generate_difference_visualization(self, original_image: np.ndarray, styled_image: np.ndarray) -> np.ndarray:
+        """
+        Generate a visualization comparing the original and styled images side by side with their difference.
+        
+        Args:
+            original_image: Original image as NumPy array
+            styled_image: Styled image as NumPy array
+            
+        Returns:
+            Visualization image as NumPy array
+        """
+        # Ensure images are the same size
+        if original_image.shape != styled_image.shape:
+            # Resize styled image to match original dimensions
+            h, w = original_image.shape[:2]
+            styled_image_resized = cv2.resize(styled_image, (w, h))
+        else:
+            styled_image_resized = styled_image
+
+        # Calculate absolute difference
+        diff = cv2.absdiff(original_image, styled_image_resized)
+        
+        # Convert to heat map for better visualization
+        diff_gray = cv2.cvtColor(diff, cv2.COLOR_RGB2GRAY)
+        diff_heatmap = cv2.applyColorMap(diff_gray, cv2.COLORMAP_JET)
+        
+        # Create a side-by-side visualization
+        h, w = original_image.shape[:2]
+        visualization = np.zeros((h, w * 3, 3), dtype=np.uint8)
+        
+        # Original image
+        visualization[:, :w] = original_image
+        
+        # Styled image
+        visualization[:, w:w*2] = styled_image_resized
+        
+        # Difference heatmap
+        visualization[:, w*2:] = diff_heatmap
+        
+        # Add labels
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        font_scale = 0.5
+        font_thickness = 1
+        cv2.putText(visualization, "Original", (10, 20), font, font_scale, (255, 255, 255), font_thickness)
+        cv2.putText(visualization, "Styled", (w + 10, 20), font, font_scale, (255, 255, 255), font_thickness)
+        cv2.putText(visualization, "Difference", (w*2 + 10, 20), font, font_scale, (255, 255, 255), font_thickness)
+        
+        # Add metrics text
+        metrics = self.calculate_metrics(original_image, styled_image_resized)
+        metric_text = f"SSIM: {metrics['ssim']:.3f}, MSE: {metrics['mse']:.1f}, PSNR: {metrics['psnr']:.1f} dB"
+        cv2.putText(visualization, metric_text, (10, h - 10), font, font_scale, (255, 255, 255), font_thickness)
+        
+        return visualization
+        
     def calculate_preservation_score(self, original_image: np.ndarray, result_image: np.ndarray,
                                     structure_mask: np.ndarray) -> float:
         """
@@ -199,50 +254,7 @@ class VisualEvaluationService:
         # Weight SSIM more heavily (0.7) as it's more perceptually relevant
         preservation_score = 0.7 * ssim_value + 0.3 * normalized_mse
         
-        return float(preservation_score)
-    
-    def generate_structure_preservation_report(self, original_image: np.ndarray, 
-                                             result_image: np.ndarray,
-                                             masks: Dict[str, np.ndarray]) -> Dict[str, float]:
-        """
-        Generate a detailed report on structure preservation across different elements.
-        
-        Args:
-            original_image: Original image as NumPy array
-            result_image: Result image as NumPy array
-            masks: Dictionary mapping element names to their binary masks
-            
-        Returns:
-            Dictionary with preservation scores for each element and overall
-        """
-        report = {}
-        combined_mask = None
-        total_score = 0.0
-        
-        # Calculate preservation score for each element
-        for element_name, mask in masks.items():
-            score = self.calculate_preservation_score(original_image, result_image, mask)
-            report[element_name] = score
-            total_score += score
-            
-            # Build combined mask for overall score
-            if combined_mask is None:
-                combined_mask = mask.copy()
-            else:
-                combined_mask = np.logical_or(combined_mask, mask).astype(np.uint8)
-        
-        # Calculate overall score
-        if combined_mask is not None and len(masks) > 0:
-            overall_score = self.calculate_preservation_score(
-                original_image, result_image, combined_mask
-            )
-        else:
-            # If no masks provided, use average of individual scores
-            overall_score = total_score / len(masks) if len(masks) > 0 else 0.0
-            
-        report["overall_score"] = overall_score
-        
-        return report
+        return preservation_score
     
     def create_comparison_visualization(self, original_image: np.ndarray, 
                                       result_image: np.ndarray) -> np.ndarray:

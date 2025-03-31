@@ -90,13 +90,13 @@ class GenerationRequest:
     """
     id: str
     input_image_id: str
-    segmentation_mask_id: Optional[str]
     prompt_id: str
+    created_at: datetime
+    segmentation_mask_id: Optional[str] = None
     model_used: str = "flux"
     fal_model_id: str = "fal-ai/flux"
     allow_layout_change: bool = False
     run_mode: str = "style_only"  # style_only | style_and_layout | furnish_empty
-    created_at: datetime
     status: str = "pending"  # pending | complete | error
 
 
@@ -116,9 +116,9 @@ class GenerationResult:
     id: str
     generation_request_id: str
     output_image_array: np.ndarray
+    completed_at: datetime
     output_path: Optional[str] = None
     similarity_score: Optional[float] = None  # (e.g., SSIM vs input)
-    completed_at: datetime
 
 
 @dataclass
@@ -142,5 +142,5 @@ class EvaluationResult:
     ssim_score: float
     mse_score: float
     is_structure_preserved: bool
-    human_rating: Optional[int] = None  # 1–5 scale for realism
     evaluated_at: datetime
+    human_rating: Optional[int] = None  # 1–5 scale for realism

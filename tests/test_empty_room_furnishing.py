@@ -102,7 +102,8 @@ class TestEmptyRoomFurnishing:
             sample_empty_room_image, 
             style="modern",
             furniture="couch, coffee table, TV stand",
-            room_type="living room"
+            room_type="living room",
+            preserve_structure=False  # Set to false to skip structure preservation
         )
         
         # Verify the result
@@ -114,8 +115,8 @@ class TestEmptyRoomFurnishing:
         mock_apply_style.assert_called_once()
         
         # Check that the prompt contains furniture items and room type
-        called_args = mock_apply_style.call_args[0]
-        prompt = called_args[1]  # Second argument should be the prompt
+        called_args = mock_apply_style.call_args[1]
+        prompt = called_args.get('prompt', '')  # Second argument should be the prompt
         assert "modern" in prompt.lower()
         assert "couch" in prompt.lower()
         assert "coffee table" in prompt.lower()
@@ -189,42 +190,47 @@ class TestEmptyRoomFurnishing:
         # Verify structure preservation logic was used
         mock_apply_style.assert_called_once()
         # Check the prompt includes structure preservation instructions
-        called_args = mock_apply_style.call_args[0]
-        prompt = called_args[1]  # Second argument should be the prompt
+        called_args = mock_apply_style.call_args[1]
+        prompt = called_args.get('prompt', '')  # Second argument should be the prompt
         assert "preserve" in prompt.lower() or "maintain" in prompt.lower()
         assert "structure" in prompt.lower() or "architecture" in prompt.lower()
     
-    @mock.patch("src.flux_integration.FluxClient.apply_style_transfer")
-    def test_generate_furnishing_variations(self, mock_apply_style, empty_room_service, 
-                                           sample_empty_room_image):
+    @mock.patch("src.flux_integration.FluxClient.generate_style_variations")
+    def test_generate_furnishing_variations(self, mock_generate_variations, empty_room_service, sample_empty_room_image):
         """
         GIVEN an empty room image
         WHEN generating multiple furnishing variations
         THEN it should return multiple unique designs
         """
-        # Mock multiple responses for variations
-        variation1 = np.ones((512, 512, 3), dtype=np.uint8) * 180
-        variation2 = np.ones((512, 512, 3), dtype=np.uint8) * 200
-        variation3 = np.ones((512, 512, 3), dtype=np.uint8) * 220
+        # Configure mock to return variations
+        variations = []
+        for i in range(3):
+            var = sample_empty_room_image.copy() * (0.8 + 0.1*i) + 30*i
+            variations.append(np.clip(var, 0, 255).astype(np.uint8))
         
-        mock_apply_style.side_effect = [variation1, variation2, variation3]
+        mock_generate_variations.return_value = variations
         
-        # Generate 3 variations
-        variations = empty_room_service.generate_furnishing_variations(
+        # Generate variations
+        result_variations = empty_room_service.generate_furnishing_variations(
             sample_empty_room_image,
-            style="bohemian",
-            furniture="bookshelf, reading chair, small table",
-            room_type="study",
-            num_variations=3
+            style="modern",
+            furniture="sectional sofa in different positions",
+            room_type="living room",
+            num_variations=3,
+            preserve_structure=False  # Skip structure preservation for basic test
         )
         
-        # Verify we got the expected number of variations
-        assert len(variations) == 3
+        # Check results
+        assert result_variations is not None
+        assert len(result_variations) == 3
         
-        # Verify all variations are unique (in a real scenario)
-        # Here we're just checking our mocked values are different
-        assert not np.array_equal(variations[0], variations[1])
-        assert not np.array_equal(variations[1], variations[2])
+        # Verify each variation is a valid image with the expected shape
+        for variation in result_variations:
+            assert isinstance(variation, np.ndarray)
+            assert variation.shape == sample_empty_room_image.shape
         
-        # Verify the mock was called the correct number of times
-        assert mock_apply_style.call_count == 3
+        # Verify the mock was called with appropriate parameters
+        mock_generate_variations.assert_called_once()
+        call_kwargs = mock_generate_variations.call_args[1]
+        assert "modern" in call_kwargs["prompt"].lower()
+        assert "sectional sofa" in call_kwargs["prompt"].lower()

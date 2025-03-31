@@ -54,6 +54,15 @@ The application enables comprehensive interior transformations:
 - Generate multiple layout variations to explore design alternatives
 - Structure preservation ensures architectural integrity through transformations
 
+### Empty Room Furnishing
+The application can transform empty rooms into fully furnished spaces:
+- Add furniture and decorative elements to bare rooms
+- Apply specified design styles to empty spaces
+- Create multiple furnishing variations for the same room
+- Preserve architectural elements during the furnishing process
+- Pre-built templates for common room types (living room, bedroom, etc.)
+- Customizable furniture specifications for precise results
+
 ## Installation
 
 ### Prerequisites

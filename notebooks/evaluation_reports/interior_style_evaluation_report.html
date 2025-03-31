@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interior Style Transfer Evaluation Report</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 1000px; margin: 0 auto; padding: 20px; }
+        h1, h2, h3 { color: #333; }
+        table { border-collapse: collapse; width: 100%; margin: 20px 0; }
+        th, td { text-align: left; padding: 8px; border: 1px solid #ddd; }
+        th { background-color: #f2f2f2; }
+        tr:nth-child(even) { background-color: #f9f9f9; }
+        img { max-width: 100%; height: auto; margin: 20px 0; box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
+        .footer { margin-top: 40px; padding-top: 20px; border-top: 1px solid #ddd; color: #666; }
+    </style>
+</head>
+<body>
+    <h1>Interior Style Transfer Evaluation Report</h1>
+<p><strong>Generated:</strong> 2025-03-31 14:28:56</p>
+<h2>Overview</h2>
+<p>This report presents a comprehensive evaluation of interior style transfer results
+for 4 interior images with 5 different style variations.</p>
+<h3>Sample Interiors</h3>
+<p>The following interior images were used in this evaluation:</p>
+<ul>
+<li>modern_living_room</li>
+<li>rustic_bedroom</li>
+<li>minimalist_kitchen</li>
+<li>art_deco_living</li>
+</ul>
+<h3>Style Variations</h3>
+<p>The following style variations were applied to each interior:</p>
+<ul>
+<li>rustic</li>
+<li>minimalist</li>
+<li>art_deco</li>
+<li>scandinavian</li>
+<li>industrial</li>
+</ul>
+<h2>Evaluation Metrics</h2>
+<p>The following metrics were used to evaluate the quality of style transfer:</p>
+<ul>
+<li><strong>SSIM (Structural Similarity Index)</strong>: Measures the perceived similarity between images (higher is better)</li>
+<li><strong>MSE (Mean Squared Error)</strong>: Measures the average squared difference between pixels (lower is better)</li>
+<li><strong>PSNR (Peak Signal-to-Noise Ratio)</strong>: Measures image quality in decibels (higher is better)</li>
+<li><strong>Structure Preservation</strong>: Measures how well architectural elements were preserved (higher is better)</li>
+</ul>
+<h3>Results Visualization</h3>
+<p><img alt="SSIM Comparison" src="ssim_comparison.png" /></p>
+<p><em>SSIM values for each content-style combination. Higher values indicate better structural similarity.</em></p>
+<p><img alt="SSIM Heatmap" src="ssim_heatmap.png" /></p>
+<p><em>Heatmap of SSIM values across all content-style combinations.</em></p>
+<p><img alt="Best Styles" src="best_styles.png" /></p>
+<p><em>The best style for each content image based on SSIM score.</em></p>
+<h2>Detailed Results</h2>
+<h3>modern_living_room</h3>
+<p><img alt="modern_living_room Style Comparison" src="../gallery_outputs/modern_living_room_style_comparison.jpg" /></p>
+<table>
+<thead>
+<tr>
+<th>Style</th>
+<th>SSIM ↑</th>
+<th>MSE ↓</th>
+<th>PSNR ↑</th>
+<th>Structure Preserved</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>minimalist</td>
+<td>0.9798</td>
+<td>28.54</td>
+<td>33.58</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>scandinavian</td>
+<td>0.9603</td>
+<td>100.93</td>
+<td>28.09</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>art_deco</td>
+<td>0.9595</td>
+<td>49.22</td>
+<td>31.21</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>rustic</td>
+<td>0.9536</td>
+<td>95.70</td>
+<td>28.32</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>industrial</td>
+<td>0.8914</td>
+<td>135.76</td>
+<td>26.80</td>
+<td>✅</td>
+</tr>
+</tbody>
+</table>
+<h3>rustic_bedroom</h3>
+<p><img alt="rustic_bedroom Style Comparison" src="../gallery_outputs/rustic_bedroom_style_comparison.jpg" /></p>
+<table>
+<thead>
+<tr>
+<th>Style</th>
+<th>SSIM ↑</th>
+<th>MSE ↓</th>
+<th>PSNR ↑</th>
+<th>Structure Preserved</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>minimalist</td>
+<td>0.9842</td>
+<td>40.11</td>
+<td>32.10</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>art_deco</td>
+<td>0.9777</td>
+<td>39.38</td>
+<td>32.18</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>rustic</td>
+<td>0.9176</td>
+<td>193.75</td>
+<td>25.26</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>scandinavian</td>
+<td>0.9043</td>
+<td>210.39</td>
+<td>24.90</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>industrial</td>
+<td>0.7517</td>
+<td>393.23</td>
+<td>22.18</td>
+<td>❌</td>
+</tr>
+</tbody>
+</table>
+<h3>minimalist_kitchen</h3>
+<p><img alt="minimalist_kitchen Style Comparison" src="../gallery_outputs/minimalist_kitchen_style_comparison.jpg" /></p>
+<table>
+<thead>
+<tr>
+<th>Style</th>
+<th>SSIM ↑</th>
+<th>MSE ↓</th>
+<th>PSNR ↑</th>
+<th>Structure Preserved</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>art_deco</td>
+<td>0.9573</td>
+<td>78.57</td>
+<td>29.18</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>minimalist</td>
+<td>0.9531</td>
+<td>123.72</td>
+<td>27.21</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>rustic</td>
+<td>0.8759</td>
+<td>470.90</td>
+<td>21.40</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>scandinavian</td>
+<td>0.8713</td>
+<td>343.63</td>
+<td>22.77</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>industrial</td>
+<td>0.6950</td>
+<td>767.65</td>
+<td>19.28</td>
+<td>❌</td>
+</tr>
+</tbody>
+</table>
+<h3>art_deco_living</h3>
+<p><img alt="art_deco_living Style Comparison" src="../gallery_outputs/art_deco_living_style_comparison.jpg" /></p>
+<table>
+<thead>
+<tr>
+<th>Style</th>
+<th>SSIM ↑</th>
+<th>MSE ↓</th>
+<th>PSNR ↑</th>
+<th>Structure Preserved</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>minimalist</td>
+<td>0.9505</td>
+<td>77.14</td>
+<td>29.26</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>art_deco</td>
+<td>0.9394</td>
+<td>67.55</td>
+<td>29.83</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>rustic</td>
+<td>0.8193</td>
+<td>287.48</td>
+<td>23.54</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>scandinavian</td>
+<td>0.7965</td>
+<td>367.44</td>
+<td>22.48</td>
+<td>❌</td>
+</tr>
+<tr>
+<td>industrial</td>
+<td>0.5960</td>
+<td>539.78</td>
+<td>20.81</td>
+<td>❌</td>
+</tr>
+</tbody>
+</table>
+<h2>Recommendations</h2>
+<p>Based on the evaluation metrics, the following style combinations are recommended:</p>
+<ul>
+<li><strong>art_deco_living</strong>: minimalist style (SSIM: 0.9505)</li>
+<li><strong>minimalist_kitchen</strong>: art_deco style (SSIM: 0.9573)</li>
+<li><strong>modern_living_room</strong>: minimalist style (SSIM: 0.9798)</li>
+<li><strong>rustic_bedroom</strong>: minimalist style (SSIM: 0.9842)</li>
+</ul>
+<h2>Conclusion</h2>
+<p>This evaluation demonstrates the effectiveness of the Interior Style Transfer POC
+in generating style variations while preserving architectural structure.
+The metrics show that the style transfer process maintains good structural similarity
+while successfully applying the target styles.</p>
+    <div class="footer">
+        <p>Generated with Interior Style Transfer POC - Semantic Seed Venture Studio</p>
+    </div>
+</body>
+</html>

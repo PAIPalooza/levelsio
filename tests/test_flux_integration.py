@@ -14,6 +14,7 @@ import json
 from unittest import mock
 from io import BytesIO
 import base64
+import tempfile
 
 # Path manipulations for testing
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -54,11 +55,20 @@ class TestFluxIntegration:
     @pytest.fixture
     def mock_response(self):
         """Fixture that provides a mock fal.ai API response."""
+        # Create a temporary file for the test image
+        with tempfile.NamedTemporaryFile(suffix='.jpg', delete=False) as tmp_file:
+            temp_image_path = tmp_file.name
+        
         # Create a base64 encoded test image to simulate API response
-        test_img = create_test_interior_image()
+        test_img_path = create_test_interior_image(output_path=temp_image_path)
+        test_img = Image.open(test_img_path)
+        
         buffered = BytesIO()
         test_img.save(buffered, format="JPEG")
         img_base64 = base64.b64encode(buffered.getvalue()).decode("utf-8")
+        
+        # Clean up the temporary file after creating the encoded response
+        os.unlink(test_img_path)
         
         return {
             "images": [img_base64],

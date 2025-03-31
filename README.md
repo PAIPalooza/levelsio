@@ -37,6 +37,23 @@ The application integrates with [fal.ai's Flux API](https://fal.ai/) for state-o
 - Automatic error handling and retry mechanisms for API calls
 - Built-in network resilience with exponential backoff
 
+### Style-Only Transfer
+The application provides specialized support for style-only transfer:
+- Apply style changes while preserving original layout and structure
+- Pre-built templates for common interior design styles (Scandinavian, Industrial, Mid-Century, etc.)
+- Customizable style prompts with room type and additional details
+- Structure preservation with segmentation masks
+- Support for generating multiple style variations
+
+### Style + Layout Transfer
+The application enables comprehensive interior transformations:
+- Change both style and furniture arrangement in a single operation
+- Rearrange furniture while preserving architectural elements (walls, floors, ceilings)
+- Pre-built templates for common room layouts
+- Combine style preferences with furniture arrangement preferences
+- Generate multiple layout variations to explore design alternatives
+- Structure preservation ensures architectural integrity through transformations
+
 ## Installation
 
 ### Prerequisites

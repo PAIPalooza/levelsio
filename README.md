@@ -72,6 +72,15 @@ The application includes a comprehensive data model for tracking and managing in
 - Support for project organization with multiple related transformations
 - Robust data structures for image, mask, prompt, and result tracking
 
+### Visual Evaluation
+The application provides tools for evaluating the quality and structural preservation of generated images:
+- SSIM (Structural Similarity Index) metrics to measure structure preservation
+- MSE (Mean Squared Error) calculation for pixel-level comparison
+- Structure preservation scoring for architectural elements
+- Multi-element preservation reports for detailed analysis
+- Side-by-side visualizations of original and generated images
+- Heatmap visualization of structural differences between images
+
 ## Installation
 
 ### Prerequisites

@@ -24,8 +24,8 @@ from dotenv import load_dotenv
 # Load environment variables
 load_dotenv()
 
-# Default API URL
-DEFAULT_API_URL = "http://localhost:8000/api/v1"
+# Default API URL - updated to use port 8080
+DEFAULT_API_URL = "http://localhost:8080/api/v1"
 
 
 def parse_args():
@@ -94,6 +94,13 @@ def parse_args():
         "--custom",
         action="store_true",
         help="Generate a custom prompt with more parameters"
+    )
+    
+    parser.add_argument(
+        "--timeout",
+        type=int,
+        default=10,
+        help="API request timeout in seconds"
     )
     
     return parser.parse_args()
@@ -176,6 +183,7 @@ def demo_api_usage(args):
     api_url = args.api_url
     headers = {"Content-Type": "application/json"}
     params = {"api_key": args.api_key}
+    timeout = args.timeout
     
     # List all styles
     if args.list_styles:
@@ -183,14 +191,21 @@ def demo_api_usage(args):
             response = requests.get(
                 f"{api_url}/prompts/styles",
                 params=params,
-                headers=headers
+                headers=headers,
+                timeout=timeout
             )
             response.raise_for_status()
             data = response.json()
             
-            print(f"Available styles ({data['total_styles']}):")
-            for style in data["styles"]:
-                print(f"- {style['name']} ({style['category']}): {style['description']}")
+            if "styles" in data:
+                print(f"Available styles ({data.get('total_styles', len(data['styles']))}):")
+                for style in data["styles"]:
+                    print(f"- {style['name']} ({style.get('category', 'unknown')}): {style.get('description', '')[:50]}...")
+            else:
+                # Handle legacy API format
+                print(f"Available styles ({len(data)}):")
+                for style in data:
+                    print(f"- {style}")
             print()
             
         except requests.RequestException as e:
@@ -202,7 +217,8 @@ def demo_api_usage(args):
             response = requests.get(
                 f"{api_url}/prompts/categories",
                 params=params,
-                headers=headers
+                headers=headers,
+                timeout=timeout
             )
             response.raise_for_status()
             categories = response.json()
@@ -221,7 +237,8 @@ def demo_api_usage(args):
             response = requests.get(
                 f"{api_url}/prompts/categories/{args.category}",
                 params=params,
-                headers=headers
+                headers=headers,
+                timeout=timeout
             )
             response.raise_for_status()
             data = response.json()
@@ -239,7 +256,8 @@ def demo_api_usage(args):
         response = requests.get(
             f"{api_url}/prompts/styles/{args.style}",
             params=params,
-            headers=headers
+            headers=headers,
+            timeout=timeout
         )
         response.raise_for_status()
         style_details = response.json()
@@ -268,7 +286,8 @@ def demo_api_usage(args):
                 f"{api_url}/prompts/generate-custom-prompt",
                 json=payload,
                 params=params,
-                headers=headers
+                headers=headers,
+                timeout=timeout
             )
         else:
             # Generate a standard prompt
@@ -282,7 +301,8 @@ def demo_api_usage(args):
                 f"{api_url}/prompts/generate-prompt",
                 json=payload,
                 params=params,
-                headers=headers
+                headers=headers,
+                timeout=timeout
             )
         
         response.raise_for_status()

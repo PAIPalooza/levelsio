@@ -16,6 +16,15 @@ from dotenv import load_dotenv
 
 from src.api.routes import api_router
 from src.api.core.auth import verify_api_key
+from src.api.models.prompts import (
+    StyleDetails,
+    StylePromptRequest,
+    StylePromptResponse,
+    CustomPromptRequest,
+    CategoryInfo,
+    StylePreview,
+    StyleListResponse
+)
 
 # Load environment variables
 load_dotenv()
@@ -44,9 +53,9 @@ def create_app() -> FastAPI:
         and prompt templates for various interior design styles.
         """,
         version="1.0.0",
-        docs_url="/api/docs",
-        redoc_url="/api/redoc",
-        openapi_url="/api/openapi.json"
+        docs_url="/docs",
+        redoc_url="/redoc",
+        openapi_url="/openapi.json"
     )
     
     # Configure CORS
@@ -102,7 +111,26 @@ def create_app() -> FastAPI:
             routes=app.routes,
         )
         
-        # Customize schema if needed
+        # Add model schemas explicitly to avoid reference errors
+        if "components" not in openapi_schema:
+            openapi_schema["components"] = {}
+            
+        if "schemas" not in openapi_schema["components"]:
+            openapi_schema["components"]["schemas"] = {}
+            
+        # Add model schemas explicitly
+        model_schemas = {
+            "StyleDetails": StyleDetails.schema(),
+            "StylePromptRequest": StylePromptRequest.schema(),
+            "StylePromptResponse": StylePromptResponse.schema(),
+            "CustomPromptRequest": CustomPromptRequest.schema(),
+            "CategoryInfo": CategoryInfo.schema(),
+            "StylePreview": StylePreview.schema(),
+            "StyleListResponse": StyleListResponse.schema()
+        }
+        
+        for name, schema in model_schemas.items():
+            openapi_schema["components"]["schemas"][name] = schema
         
         app.openapi_schema = openapi_schema
         return app.openapi_schema
@@ -122,7 +150,7 @@ if __name__ == "__main__":
     
     # Get host and port from environment or use defaults
     host = os.getenv("API_HOST", "0.0.0.0")
-    port = int(os.getenv("API_PORT", "8000"))
+    port = int(os.getenv("API_PORT", "8080"))
     
     logger.info(f"Starting API server on {host}:{port}")
     uvicorn.run(

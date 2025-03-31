@@ -41,15 +41,12 @@ class TestLayoutTransfer:
     @pytest.fixture
     def layout_transfer_service(self):
         """Fixture that provides a layout transfer service instance."""
-        try:
-            from src.layout_transfer import LayoutTransferService
-            from src.flux_integration import FluxClient
-            
-            # Use a mock API key for testing
-            flux_client = FluxClient(api_key="test_key")
-            return LayoutTransferService(flux_client=flux_client)
-        except ImportError:
-            pytest.skip("LayoutTransferService not implemented yet")
+        from src.layout_transfer import LayoutTransferService
+        from src.flux_integration import FluxClient
+        
+        # Use a mock API key for testing
+        flux_client = FluxClient(api_key="test_key")
+        return LayoutTransferService(flux_client=flux_client)
     
     @pytest.fixture
     def sample_masks(self, segmentation_handler, sample_image_path):
@@ -63,30 +60,26 @@ class TestLayoutTransfer:
         WHEN initializing a LayoutTransferService
         THEN it should properly configure itself
         """
-        try:
-            from src.layout_transfer import LayoutTransferService
-            from src.flux_integration import FluxClient
-            from src.style_transfer import StyleTransferService
-            
-            # Test initialization with FluxClient
-            flux_client = FluxClient(api_key="test_key")
-            service = LayoutTransferService(flux_client=flux_client)
-            
-            assert service.flux_client is not None
-            assert service.flux_client == flux_client
-            
-            # Test initialization with style transfer service
-            style_service = StyleTransferService(flux_client=flux_client)
-            layout_service = LayoutTransferService(
-                flux_client=flux_client,
-                style_transfer_service=style_service
-            )
-            
-            assert layout_service.style_transfer_service is not None
-            assert layout_service.style_transfer_service == style_service
-            
-        except ImportError:
-            pytest.skip("LayoutTransferService not implemented yet")
+        from src.layout_transfer import LayoutTransferService
+        from src.flux_integration import FluxClient
+        from src.style_transfer import StyleTransferService
+        
+        # Test initialization with FluxClient
+        flux_client = FluxClient(api_key="test_key")
+        service = LayoutTransferService(flux_client=flux_client)
+        
+        assert service.flux_client is not None
+        assert service.flux_client == flux_client
+        
+        # Test initialization with style transfer service
+        style_service = StyleTransferService(flux_client=flux_client)
+        layout_service = LayoutTransferService(
+            flux_client=flux_client,
+            style_transfer_service=style_service
+        )
+        
+        assert layout_service.style_transfer_service is not None
+        assert layout_service.style_transfer_service == style_service
     
     @mock.patch("src.flux_integration.FluxClient.apply_style_transfer")
     def test_apply_layout_transfer(self, mock_apply_style, layout_transfer_service, 
@@ -210,34 +203,30 @@ class TestLayoutTransfer:
         WHEN format_layout_prompt is called with a furniture arrangement
         THEN it should return a properly formatted prompt for layout transfer
         """
-        try:
-            from src.layout_transfer import LayoutTransferService
-            
-            service = LayoutTransferService()
-            
-            # Test basic layout prompt formatting
-            basic_prompt = service.format_layout_prompt("sofa and coffee table")
-            assert "sofa" in basic_prompt.lower()
-            assert "coffee table" in basic_prompt.lower()
-            assert "furniture" in basic_prompt.lower() or "layout" in basic_prompt.lower()
-            
-            # Test with room type
-            room_prompt = service.format_layout_prompt("bed against wall, nightstands", room_type="bedroom")
-            assert "bed" in room_prompt.lower()
-            assert "bedroom" in room_prompt.lower()
-            
-            # Test with style
-            style_prompt = service.format_layout_prompt(
-                "dining table with six chairs",
-                room_type="dining room",
-                style="Scandinavian"
-            )
-            assert "dining table" in style_prompt.lower()
-            assert "dining room" in style_prompt.lower()
-            assert "scandinavian" in style_prompt.lower()
-            
-        except ImportError:
-            pytest.skip("LayoutTransferService not implemented yet")
+        from src.layout_transfer import LayoutTransferService
+        
+        service = LayoutTransferService()
+        
+        # Test basic layout prompt formatting
+        basic_prompt = service.format_layout_prompt("sofa and coffee table")
+        assert "sofa" in basic_prompt.lower()
+        assert "coffee table" in basic_prompt.lower()
+        assert "furniture" in basic_prompt.lower() or "layout" in basic_prompt.lower()
+        
+        # Test with room type
+        room_prompt = service.format_layout_prompt("bed against wall, nightstands", room_type="bedroom")
+        assert "bed" in room_prompt.lower()
+        assert "bedroom" in room_prompt.lower()
+        
+        # Test with style
+        style_prompt = service.format_layout_prompt(
+            "dining table with six chairs",
+            room_type="dining room",
+            style="Scandinavian"
+        )
+        assert "dining table" in style_prompt.lower()
+        assert "dining room" in style_prompt.lower()
+        assert "scandinavian" in style_prompt.lower()
     
     @mock.patch("src.flux_integration.FluxClient.apply_style_transfer")
     def test_combined_style_layout_transfer(self, mock_apply_style, layout_transfer_service, 

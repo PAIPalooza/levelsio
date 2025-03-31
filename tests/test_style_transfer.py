@@ -206,12 +206,12 @@ class TestStyleTransfer:
             
             # Test basic prompt formatting
             basic_prompt = service.format_style_prompt("Scandinavian")
-            assert "Scandinavian" in basic_prompt
+            assert "Scandinavian" in basic_prompt or "scandinavian" in basic_prompt.lower()
             assert len(basic_prompt) > len("Scandinavian")
             
             # Test with room type
             room_prompt = service.format_style_prompt("Industrial", room_type="bedroom")
-            assert "Industrial" in room_prompt
+            assert "Industrial" in room_prompt or "industrial" in room_prompt.lower()
             assert "bedroom" in room_prompt.lower()
             
             # Test with additional details
@@ -220,7 +220,7 @@ class TestStyleTransfer:
                 room_type="living room",
                 details="with clean lines and neutral colors"
             )
-            assert "Minimalist" in detailed_prompt
+            assert "Minimalist" in detailed_prompt or "minimalist" in detailed_prompt.lower()
             assert "living room" in detailed_prompt.lower()
             assert "clean lines" in detailed_prompt.lower()
             

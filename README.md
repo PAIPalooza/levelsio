@@ -45,6 +45,15 @@ The application provides specialized support for style-only transfer:
 - Structure preservation with segmentation masks
 - Support for generating multiple style variations
 
+### Style + Layout Transfer
+The application enables comprehensive interior transformations:
+- Change both style and furniture arrangement in a single operation
+- Rearrange furniture while preserving architectural elements (walls, floors, ceilings)
+- Pre-built templates for common room layouts
+- Combine style preferences with furniture arrangement preferences
+- Generate multiple layout variations to explore design alternatives
+- Structure preservation ensures architectural integrity through transformations
+
 ## Installation
 
 ### Prerequisites

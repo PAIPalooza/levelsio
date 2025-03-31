@@ -1,0 +1,122 @@
+{
+  "timestamp": "2025-03-31 14:25:53",
+  "content_images": [
+    "modern_living_room",
+    "rustic_bedroom",
+    "minimalist_kitchen",
+    "art_deco_living"
+  ],
+  "styles_applied": [
+    "rustic",
+    "minimalist",
+    "art_deco",
+    "scandinavian",
+    "industrial"
+  ],
+  "variations": [
+    {
+      "content_name": "modern_living_room",
+      "styles": [
+        {
+          "style_name": "rustic",
+          "output_file": "modern_living_room_rustic_style.jpg"
+        },
+        {
+          "style_name": "minimalist",
+          "output_file": "modern_living_room_minimalist_style.jpg"
+        },
+        {
+          "style_name": "art_deco",
+          "output_file": "modern_living_room_art_deco_style.jpg"
+        },
+        {
+          "style_name": "scandinavian",
+          "output_file": "modern_living_room_scandinavian_style.jpg"
+        },
+        {
+          "style_name": "industrial",
+          "output_file": "modern_living_room_industrial_style.jpg"
+        }
+      ],
+      "comparison_image": "modern_living_room_style_comparison.jpg"
+    },
+    {
+      "content_name": "rustic_bedroom",
+      "styles": [
+        {
+          "style_name": "rustic",
+          "output_file": "rustic_bedroom_rustic_style.jpg"
+        },
+        {
+          "style_name": "minimalist",
+          "output_file": "rustic_bedroom_minimalist_style.jpg"
+        },
+        {
+          "style_name": "art_deco",
+          "output_file": "rustic_bedroom_art_deco_style.jpg"
+        },
+        {
+          "style_name": "scandinavian",
+          "output_file": "rustic_bedroom_scandinavian_style.jpg"
+        },
+        {
+          "style_name": "industrial",
+          "output_file": "rustic_bedroom_industrial_style.jpg"
+        }
+      ],
+      "comparison_image": "rustic_bedroom_style_comparison.jpg"
+    },
+    {
+      "content_name": "minimalist_kitchen",
+      "styles": [
+        {
+          "style_name": "rustic",
+          "output_file": "minimalist_kitchen_rustic_style.jpg"
+        },
+        {
+          "style_name": "minimalist",
+          "output_file": "minimalist_kitchen_minimalist_style.jpg"
+        },
+        {
+          "style_name": "art_deco",
+          "output_file": "minimalist_kitchen_art_deco_style.jpg"
+        },
+        {
+          "style_name": "scandinavian",
+          "output_file": "minimalist_kitchen_scandinavian_style.jpg"
+        },
+        {
+          "style_name": "industrial",
+          "output_file": "minimalist_kitchen_industrial_style.jpg"
+        }
+      ],
+      "comparison_image": "minimalist_kitchen_style_comparison.jpg"
+    },
+    {
+      "content_name": "art_deco_living",
+      "styles": [
+        {
+          "style_name": "rustic",
+          "output_file": "art_deco_living_rustic_style.jpg"
+        },
+        {
+          "style_name": "minimalist",
+          "output_file": "art_deco_living_minimalist_style.jpg"
+        },
+        {
+          "style_name": "art_deco",
+          "output_file": "art_deco_living_art_deco_style.jpg"
+        },
+        {
+          "style_name": "scandinavian",
+          "output_file": "art_deco_living_scandinavian_style.jpg"
+        },
+        {
+          "style_name": "industrial",
+          "output_file": "art_deco_living_industrial_style.jpg"
+        }
+      ],
+      "comparison_image": "art_deco_living_style_comparison.jpg"
+    }
+  ]
+}

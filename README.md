@@ -54,6 +54,24 @@ The application enables comprehensive interior transformations:
 - Generate multiple layout variations to explore design alternatives
 - Structure preservation ensures architectural integrity through transformations
 
+### Empty Room Furnishing
+The application can transform empty rooms into fully furnished spaces:
+- Add furniture and decorative elements to bare rooms
+- Apply specified design styles to empty spaces
+- Create multiple furnishing variations for the same room
+- Preserve architectural elements during the furnishing process
+- Pre-built templates for common room types (living room, bedroom, etc.)
+- Customizable furniture specifications for precise results
+
+### Data Model & Project Tracking
+The application includes a comprehensive data model for tracking and managing interior design projects:
+- Track input images, segmentation masks, and generated results
+- Maintain detailed metadata for each image and transformation
+- Preserve full transformation history and lineage
+- Serialize and persist design projects for later review
+- Support for project organization with multiple related transformations
+- Robust data structures for image, mask, prompt, and result tracking
+
 ## Installation
 
 ### Prerequisites

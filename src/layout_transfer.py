@@ -35,22 +35,27 @@ class LayoutTransferService:
         "home_office": "A {style} home office with furniture layout: {furniture_arrangement}. Keep the room's architectural details intact."
     }
     
-    def __init__(self, flux_client=None, style_transfer_service=None):
+    def __init__(self, flux_client=None, style_transfer_service=None, segmentation_handler=None):
         """
         Initialize the layout transfer service.
         
         Args:
             flux_client: FluxClient instance for API calls
             style_transfer_service: Optional StyleTransferService instance
+            segmentation_handler: Optional SegmentationHandler instance
         """
         self.flux_client = flux_client
         self.style_transfer_service = style_transfer_service
+        self.segmentation_handler = segmentation_handler
         
         # Import style transfer service if not provided but needed
         if not self.style_transfer_service and flux_client:
             try:
                 from src.style_transfer import StyleTransferService
-                self.style_transfer_service = StyleTransferService(flux_client=flux_client)
+                self.style_transfer_service = StyleTransferService(
+                    flux_client=flux_client,
+                    segmentation_handler=segmentation_handler
+                )
             except ImportError:
                 logger.warning("StyleTransferService not available, some functionality may be limited")
                 
@@ -97,6 +102,7 @@ class LayoutTransferService:
         image: np.ndarray, 
         layout_prompt: str,
         structure_mask: Optional[np.ndarray] = None,
+        preserve_structure: bool = True,
         guidance_scale: float = 7.5,
         num_inference_steps: int = 30,
         seed: Optional[int] = None,
@@ -110,6 +116,7 @@ class LayoutTransferService:
             image: Input image as NumPy array
             layout_prompt: Layout description with furniture arrangement
             structure_mask: Binary mask of structural elements to preserve
+            preserve_structure: Whether to preserve architectural elements
             guidance_scale: How closely to follow the prompt
             num_inference_steps: Number of diffusion steps
             seed: Random seed for reproducibility
@@ -124,8 +131,33 @@ class LayoutTransferService:
             
         logger.info(f"Applying layout transfer with prompt: '{layout_prompt}'")
         
-        # Enhance prompt with structure preservation emphasis
-        enhanced_prompt = f"{layout_prompt} Maintain the room's architectural structure."
+        # Enhance prompt with structure preservation emphasis if requested
+        enhanced_prompt = layout_prompt
+        if preserve_structure:
+            if not enhanced_prompt.endswith('.'):
+                enhanced_prompt += '.'
+            enhanced_prompt += " Maintain the room's architectural structure exactly as in the original image. Preserve all walls, ceilings, floors, windows, doors, and built-in features in their exact original positions."
+        
+        # If structure preservation is requested but no mask is provided, generate one
+        if preserve_structure and structure_mask is None and self.segmentation_handler is not None:
+            logger.info("Generating structure mask for layout transfer")
+            # Generate wall mask
+            wall_mask = self.segmentation_handler.create_mask(
+                image, 
+                label="wall",
+                use_sam=True
+            )
+            
+            # Generate floor mask
+            floor_mask = self.segmentation_handler.create_mask(
+                image, 
+                label="floor",
+                use_sam=True
+            )
+            
+            # Combine masks for structural elements
+            structure_mask = np.logical_or(wall_mask, floor_mask).astype(np.uint8)
+            logger.info("Structure mask generated for layout transfer")
         
         # Apply layout transfer using Flux API
         layout_image = self.flux_client.apply_style_transfer(
@@ -138,13 +170,16 @@ class LayoutTransferService:
             max_retries=max_retries
         )
         
-        # If structure mask is provided, preserve structure
-        if structure_mask is not None:
+        # If structure mask is provided and structure preservation is enabled, apply it
+        if structure_mask is not None and preserve_structure:
             logger.info("Preserving structure using mask")
             
-            # Import segmentation handler
-            from src.segmentation import SegmentationHandler
-            handler = SegmentationHandler()
+            # Use provided segmentation handler or import on-demand
+            handler = self.segmentation_handler
+            if handler is None:
+                # Import segmentation handler if not provided
+                from src.segmentation import SegmentationHandler
+                handler = SegmentationHandler()
             
             # Apply structure preservation
             preserved_image = handler.apply_structure_preservation(
@@ -155,7 +190,7 @@ class LayoutTransferService:
             
             return preserved_image
         else:
-            logger.info("No structure mask provided, returning layout image without preservation")
+            logger.info("No structure preservation applied, returning layout image as-is")
             return layout_image
     
     def generate_layout_variations(
@@ -163,6 +198,7 @@ class LayoutTransferService:
         image: np.ndarray, 
         layout_prompt: str,
         structure_mask: Optional[np.ndarray] = None,
+        preserve_structure: bool = True,
         num_variations: int = 3,
         guidance_scale: float = 7.5,
         num_inference_steps: int = 30,
@@ -177,6 +213,7 @@ class LayoutTransferService:
             image: Input image as NumPy array
             layout_prompt: Layout description with furniture arrangement
             structure_mask: Binary mask of structural elements to preserve
+            preserve_structure: Whether to preserve architectural elements
             num_variations: Number of variations to generate
             guidance_scale: How closely to follow the prompt
             num_inference_steps: Number of diffusion steps
@@ -192,8 +229,33 @@ class LayoutTransferService:
             
         logger.info(f"Generating {num_variations} layout variations with prompt: '{layout_prompt}'")
         
-        # Enhance prompt with structure preservation emphasis
-        enhanced_prompt = f"{layout_prompt} Maintain the room's architectural structure."
+        # Enhance prompt with structure preservation emphasis if requested
+        enhanced_prompt = layout_prompt
+        if preserve_structure:
+            if not enhanced_prompt.endswith('.'):
+                enhanced_prompt += '.'
+            enhanced_prompt += " Maintain the room's architectural structure exactly as in the original image. Preserve all walls, ceilings, floors, windows, doors, and built-in features in their exact original positions."
+        
+        # If structure preservation is requested but no mask is provided, generate one
+        if preserve_structure and structure_mask is None and self.segmentation_handler is not None:
+            logger.info("Generating structure mask for layout variations")
+            # Generate wall mask
+            wall_mask = self.segmentation_handler.create_mask(
+                image, 
+                label="wall",
+                use_sam=True
+            )
+            
+            # Generate floor mask
+            floor_mask = self.segmentation_handler.create_mask(
+                image, 
+                label="floor",
+                use_sam=True
+            )
+            
+            # Combine masks for structural elements
+            structure_mask = np.logical_or(wall_mask, floor_mask).astype(np.uint8)
+            logger.info("Structure mask generated for layout variations")
         
         # Generate layout variations using Flux API
         layout_variations = self.flux_client.generate_style_variations(
@@ -207,13 +269,16 @@ class LayoutTransferService:
             max_retries=max_retries
         )
         
-        # If structure mask is provided, preserve structure in all variations
-        if structure_mask is not None and layout_variations:
-            logger.info("Preserving structure in all variations")
+        # If structure mask is provided and preservation is enabled, apply to all variations
+        if structure_mask is not None and preserve_structure and layout_variations:
+            logger.info("Preserving structure in all layout variations")
             
-            # Import segmentation handler
-            from src.segmentation import SegmentationHandler
-            handler = SegmentationHandler()
+            # Use provided segmentation handler or import on-demand
+            handler = self.segmentation_handler
+            if handler is None:
+                # Import segmentation handler if not provided
+                from src.segmentation import SegmentationHandler
+                handler = SegmentationHandler()
             
             # Apply structure preservation to all variations
             preserved_variations = handler.preserve_structure_in_styles(
@@ -224,7 +289,7 @@ class LayoutTransferService:
             
             return preserved_variations
         else:
-            logger.info("No structure mask provided, returning layout variations without preservation")
+            logger.info("No structure preservation applied, returning layout variations as-is")
             return layout_variations
     
     def apply_style_and_layout(
@@ -233,6 +298,7 @@ class LayoutTransferService:
         style_prompt: str,
         layout_prompt: str,
         structure_mask: Optional[np.ndarray] = None,
+        preserve_structure: bool = True,
         guidance_scale: float = 7.5,
         num_inference_steps: int = 30,
         seed: Optional[int] = None,
@@ -247,6 +313,7 @@ class LayoutTransferService:
             style_prompt: Style description
             layout_prompt: Layout description with furniture arrangement
             structure_mask: Binary mask of structural elements to preserve
+            preserve_structure: Whether to preserve architectural elements
             guidance_scale: How closely to follow the prompt
             num_inference_steps: Number of diffusion steps
             seed: Random seed for reproducibility
@@ -262,7 +329,32 @@ class LayoutTransferService:
         logger.info(f"Applying style and layout transfer with prompts: Style='{style_prompt}', Layout='{layout_prompt}'")
         
         # Combine style and layout prompts
-        combined_prompt = f"A {style_prompt} style room with {layout_prompt}. Maintain the room's architectural structure."
+        combined_prompt = f"A {style_prompt} style room with {layout_prompt}."
+        if preserve_structure:
+            if not combined_prompt.endswith('.'):
+                combined_prompt += '.'
+            combined_prompt += " Maintain the room's architectural structure exactly as in the original image. Preserve all walls, ceilings, floors, windows, doors, and built-in features in their exact original positions."
+        
+        # If structure preservation is requested but no mask is provided, generate one
+        if preserve_structure and structure_mask is None and self.segmentation_handler is not None:
+            logger.info("Generating structure mask for style and layout transfer")
+            # Generate wall mask
+            wall_mask = self.segmentation_handler.create_mask(
+                image, 
+                label="wall",
+                use_sam=True
+            )
+            
+            # Generate floor mask
+            floor_mask = self.segmentation_handler.create_mask(
+                image, 
+                label="floor",
+                use_sam=True
+            )
+            
+            # Combine masks for structural elements
+            structure_mask = np.logical_or(wall_mask, floor_mask).astype(np.uint8)
+            logger.info("Structure mask generated for style and layout transfer")
         
         # Apply combined style and layout transfer using Flux API
         transformed_image = self.flux_client.apply_style_transfer(
@@ -275,13 +367,16 @@ class LayoutTransferService:
             max_retries=max_retries
         )
         
-        # If structure mask is provided, preserve structure
-        if structure_mask is not None:
+        # If structure mask is provided and preservation is enabled, apply it
+        if structure_mask is not None and preserve_structure:
             logger.info("Preserving structure using mask")
             
-            # Import segmentation handler
-            from src.segmentation import SegmentationHandler
-            handler = SegmentationHandler()
+            # Use provided segmentation handler or import on-demand
+            handler = self.segmentation_handler
+            if handler is None:
+                # Import segmentation handler if not provided
+                from src.segmentation import SegmentationHandler
+                handler = SegmentationHandler()
             
             # Apply structure preservation
             preserved_image = handler.apply_structure_preservation(
@@ -292,5 +387,5 @@ class LayoutTransferService:
             
             return preserved_image
         else:
-            logger.info("No structure mask provided, returning transformed image without preservation")
+            logger.info("No structure preservation applied, returning transformed image as-is")
             return transformed_image

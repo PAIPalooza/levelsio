@@ -1,0 +1,77 @@
+[
+  {
+    "title": "Epic: Style Transfer POC Infrastructure Setup",
+    "body": "Set up the initial project infrastructure using Semantic Seed Coding Standards (SSCS). This includes the folder structure, dependencies, environment setup, and `README.md` scaffold.",
+    "labels": ["epic", "sprint:0", "type:setup"]
+  },
+  {
+    "title": "Create project folder structure and README",
+    "body": "Scaffold the initial directory structure per SSCS:\n- `src/`\n- `notebooks/`\n- `assets/`\n- `models/`\n- `tests/`\n\nInclude an initial `README.md` with a summary of the project and how to run the notebook.",
+    "labels": ["sprint:0", "type:setup", "story:infra"]
+  },
+  {
+    "title": "Install and configure Segment Anything Model (SAM)",
+    "body": "Install `segment-anything`, load SAM model weights, and verify successful segmentation on a test interior image.",
+    "labels": ["sprint:1", "type:feature", "story:segmentation"]
+  },
+  {
+    "title": "Apply segmentation mask to preserve room structure",
+    "body": "Create binary masks of architectural elements (walls, floor, ceiling) and apply them to input images to isolate style-transfer regions.",
+    "labels": ["sprint:1", "type:feature", "story:masking"]
+  },
+  {
+    "title": "Build Flux integration with fal.ai",
+    "body": "Use the @fal API and Flux model to submit input images and prompts, retrieve styled output images, and handle errors or retries.",
+    "labels": ["sprint:2", "type:feature", "story:generation"]
+  },
+  {
+    "title": "Add support for style-only transfer",
+    "body": "Use a style prompt to generate a new version of the interior while preserving the original layout and structure.",
+    "labels": ["sprint:2", "type:feature", "story:style-transfer"]
+  },
+  {
+    "title": "Add support for style + layout transfer",
+    "body": "Allow prompts to change furniture layout and placement while preserving the room’s architecture.",
+    "labels": ["sprint:3", "type:feature", "story:layout-transfer"]
+  },
+  {
+    "title": "Add support for furnishing empty rooms",
+    "body": "Use an empty room photo and a prompt to generate fully styled interiors using Flux, while keeping wall/floor structure intact.",
+    "labels": ["sprint:3", "type:feature", "story:empty-room"]
+  },
+  {
+    "title": "Create data model for image, mask, prompt, and result tracking",
+    "body": "Implement data classes or equivalent representations for InteriorImage, SegmentationMask, StylePrompt, GenerationRequest, and GenerationResult.",
+    "labels": ["sprint:1", "type:architecture", "story:data-model"]
+  },
+  {
+    "title": "Implement visual evaluation with SSIM and MSE",
+    "body": "Use image similarity metrics to compare structural preservation in output vs. input. Include pass/fail thresholds in tests.",
+    "labels": ["sprint:4", "type:test", "story:evaluation"]
+  },
+  {
+    "title": "Write unit and integration tests (TDD)",
+    "body": "Add tests for each module including segmentation, masking, and generation using pytest. Include dummy image inputs.",
+    "labels": ["sprint:4", "type:test", "story:testing"]
+  },
+  {
+    "title": "Build interactive notebook for demo and testing",
+    "body": "Assemble a fully runnable notebook with markdown headers, prompt inputs, and sample results for each use case.",
+    "labels": ["sprint:5", "type:feature", "story:demo"]
+  },
+  {
+    "title": "Add input/output image comparison and visualization",
+    "body": "Display before/after images side-by-side in the notebook with overlayed masks if available.",
+    "labels": ["sprint:5", "type:ui", "story:visualization"]
+  },
+  {
+    "title": "Add prompt templates for common interior styles",
+    "body": "Create and test a set of prompt templates: Scandinavian, Minimalist, Futuristic, Cozy, etc.",
+    "labels": ["sprint:5", "type:enhancement", "story:prompts"]
+  },
+  {
+    "title": "Final QA: review code comments, structure, and compliance with SSCS",
+    "body": "Perform final review of the entire codebase and notebook to ensure all standards are met and test coverage is sufficient.",
+    "labels": ["sprint:6", "type:qa", "story:final-polish"]
+  }
+]

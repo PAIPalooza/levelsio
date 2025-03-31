@@ -12,6 +12,23 @@ This project demonstrates an AI-driven interior design system that uses Flux via
 
 The system uses auto-segmentation and masking to ensure structural elements (walls, floors, windows) remain intact.
 
+## Features
+
+### Image Segmentation
+The application uses the Segment Anything Model (SAM) to identify different elements in interior images:
+- Walls
+- Floors
+- Ceilings
+- Windows
+- Combined structure masks
+
+### Structure Preservation
+When applying style transfer to interior images, the application preserves architectural elements:
+- Maintains structural integrity of rooms (walls, floors, ceilings)
+- Applies style changes primarily to furniture and decorative elements
+- Supports multiple style variations while maintaining the same structure
+- Provides scoring mechanism to evaluate structure preservation quality
+
 ## Installation
 
 ### Prerequisites

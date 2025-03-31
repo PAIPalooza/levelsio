@@ -29,6 +29,14 @@ When applying style transfer to interior images, the application preserves archi
 - Supports multiple style variations while maintaining the same structure
 - Provides scoring mechanism to evaluate structure preservation quality
 
+### Style Transfer via Flux
+The application integrates with [fal.ai's Flux API](https://fal.ai/) for state-of-the-art style transfer:
+- Generate stunning interior transformations while preserving architectural structure
+- Support for customizable style prompts
+- Multiple style variations for the same input image
+- Automatic error handling and retry mechanisms for API calls
+- Built-in network resilience with exponential backoff
+
 ## Installation
 
 ### Prerequisites

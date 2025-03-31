@@ -63,6 +63,15 @@ The application can transform empty rooms into fully furnished spaces:
 - Pre-built templates for common room types (living room, bedroom, etc.)
 - Customizable furniture specifications for precise results
 
+### Data Model & Project Tracking
+The application includes a comprehensive data model for tracking and managing interior design projects:
+- Track input images, segmentation masks, and generated results
+- Maintain detailed metadata for each image and transformation
+- Preserve full transformation history and lineage
+- Serialize and persist design projects for later review
+- Support for project organization with multiple related transformations
+- Robust data structures for image, mask, prompt, and result tracking
+
 ## Installation
 
 ### Prerequisites

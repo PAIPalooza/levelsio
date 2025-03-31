@@ -12,9 +12,11 @@ import base64
 import logging
 import requests
 import numpy as np
+import fal_client
 from typing import Dict, List, Any, Optional, Union, Tuple
 from PIL import Image
 from io import BytesIO
+import httpx
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -29,8 +31,8 @@ class FluxClient:
     applying style transfers to interior images.
     """
     
-    # API endpoints
-    FAL_API_URL = "https://api.fal.ai/v1/inference"
+    # Updated to use the official Fal.ai model endpoints
+    MODEL_ENDPOINT = "fal-ai/flux/dev"
     
     def __init__(self, api_key: Optional[str] = None, model_key: str = "flux-1"):
         """
@@ -44,186 +46,184 @@ class FluxClient:
         if not self.api_key:
             raise ValueError("API key is required. Provide it directly or set the FAL_KEY environment variable.")
         
-        self.model_key = model_key
-        self.headers = {
-            "Authorization": f"Key {self.api_key}",
-            "Content-Type": "application/json"
-        }
+        # Set API key in environment for fal_client library
+        os.environ["FAL_KEY"] = self.api_key
         
-        logger.info(f"FluxClient initialized with model: {model_key}")
+        self.model_key = model_key
+        logger.info(f"FluxClient initialized with model endpoint: {self.MODEL_ENDPOINT}")
     
     def _encode_image(self, image: np.ndarray) -> str:
         """
-        Convert a NumPy image array to base64-encoded string.
+        Convert a NumPy array image to a base64-encoded data URI.
         
         Args:
-            image: Input image as NumPy array
+            image: NumPy array containing the image
             
         Returns:
-            Base64-encoded image string
+            Base64-encoded data URI string representation of the image
         """
-        # Convert numpy array to PIL Image
-        if isinstance(image, np.ndarray):
-            image_pil = Image.fromarray(image.astype(np.uint8))
-        else:
-            image_pil = image
+        try:
+            # Convert numpy array to PIL Image
+            if image.dtype != np.uint8:
+                image = (image * 255).astype(np.uint8)
             
-        # Save to BytesIO buffer and encode
-        buffered = BytesIO()
-        image_pil.save(buffered, format="JPEG")
-        return base64.b64encode(buffered.getvalue()).decode("utf-8")
+            pil_image = Image.fromarray(image)
+            
+            # Save image to bytes buffer
+            buffer = BytesIO()
+            pil_image.save(buffer, format="JPEG")
+            buffer.seek(0)
+            
+            # Encode as base64
+            encoded = base64.b64encode(buffer.read()).decode("utf-8")
+            return f"data:image/jpeg;base64,{encoded}"
+        except Exception as e:
+            logger.error(f"Error encoding image: {str(e)}")
+            raise
     
-    def _decode_image(self, base64_str: str) -> np.ndarray:
+    def _decode_image(self, image_data: Union[str, Dict[str, Any]]) -> np.ndarray:
         """
-        Convert a base64-encoded image string to NumPy array.
+        Convert image data to a NumPy array image.
         
         Args:
-            base64_str: Base64-encoded image string
+            image_data: Image data as a string (base64/data URI) or URL dictionary
             
         Returns:
-            Image as NumPy array
+            NumPy array containing the decoded image
         """
-        # Decode base64 string to bytes
-        image_bytes = base64.b64decode(base64_str)
-        
-        # Convert to PIL Image and then to NumPy array
-        image = Image.open(BytesIO(image_bytes))
-        return np.array(image)
-    
-    def _make_request(
-        self, 
-        payload: Dict[str, Any], 
-        max_retries: int = 3, 
-        retry_delay: float = 2.0
-    ) -> Dict[str, Any]:
-        """
-        Make an API request to fal.ai with retry logic.
-        
-        Args:
-            payload: Request payload
-            max_retries: Maximum number of retry attempts
-            retry_delay: Delay between retries in seconds
+        try:
+            # Handle dictionary with URL
+            if isinstance(image_data, dict) and "url" in image_data:
+                image_url = image_data["url"]
+                logger.info(f"Downloading image from URL: {image_url}")
+                response = httpx.get(image_url, timeout=30)
+                response.raise_for_status()
+                image_bytes = response.content
+                image = Image.open(BytesIO(image_bytes))
+                return np.array(image)
             
-        Returns:
-            API response as dictionary
-            
-        Raises:
-            Exception: If all retry attempts fail
-        """
-        endpoint = f"{self.FAL_API_URL}/{self.model_key}"
-        
-        for attempt in range(max_retries):
-            try:
-                logger.info(f"Making API request to Flux (attempt {attempt + 1}/{max_retries})")
-                response = requests.post(endpoint, headers=self.headers, json=payload)
+            # Handle string data (base64 or data URI)
+            elif isinstance(image_data, str):
+                # Handle data URI format
+                if image_data.startswith("data:"):
+                    image_data = image_data.split(",", 1)[1]
                 
-                if response.status_code == 200:
-                    return response.json()
-                else:
-                    error_info = response.json() if response.text else {"status_code": response.status_code}
-                    logger.warning(f"API request failed: {error_info}")
-                    
-                    # Check if we should retry based on error type
-                    if response.status_code in [429, 500, 502, 503, 504]:
-                        # Throttling or server errors - retry
-                        logger.info(f"Retrying in {retry_delay} seconds...")
-                        time.sleep(retry_delay)
-                        # Increase delay for next attempt
-                        retry_delay *= 1.5
-                        continue
-                    else:
-                        # Client errors - don't retry
-                        error_message = f"API error: {response.status_code} - {error_info}"
-                        raise Exception(error_message)
-                        
-            except Exception as e:
-                if attempt < max_retries - 1:
-                    logger.warning(f"Request failed: {str(e)}. Retrying in {retry_delay} seconds...")
-                    time.sleep(retry_delay)
-                    # Increase delay for next attempt
-                    retry_delay *= 1.5
-                else:
-                    logger.error(f"All retry attempts failed: {str(e)}")
-                    raise
-        
-        # This should not be reached due to the exception above, but just in case
-        raise Exception("All retry attempts failed")
+                # Decode base64 string to bytes
+                image_bytes = base64.b64decode(image_data)
+                
+                # Convert bytes to PIL Image
+                image = Image.open(BytesIO(image_bytes))
+                
+                # Convert PIL Image to NumPy array
+                return np.array(image)
+            else:
+                raise ValueError(f"Unsupported image data format: {type(image_data)}")
+        except Exception as e:
+            logger.error(f"Error decoding image: {str(e)}")
+            raise
     
     def apply_style_transfer(
         self, 
         image: np.ndarray, 
         prompt: str,
-        negative_prompt: str = "",
+        negative_prompt: str = "blurry, distorted architecture, unrealistic",
         guidance_scale: float = 7.5,
         num_inference_steps: int = 30,
         seed: Optional[int] = None,
-        max_retries: int = 3
+        max_retries: int = 3,
+        retry_delay: float = 2.0
     ) -> np.ndarray:
         """
-        Apply style transfer to an interior image using Flux.
+        Apply style transfer to an interior image.
         
         Args:
-            image: Input image as NumPy array
-            prompt: Style description text prompt
-            negative_prompt: What to avoid in the generation
+            image: NumPy array containing the image to transform
+            prompt: Text description of the desired style
+            negative_prompt: Text description of what to avoid
             guidance_scale: How closely to follow the prompt (higher = closer)
-            num_inference_steps: Number of diffusion steps (higher = more detail)
+            num_inference_steps: Number of diffusion steps to perform
             seed: Random seed for reproducibility
-            max_retries: Maximum number of retry attempts
+            max_retries: Maximum number of retry attempts on failure
+            retry_delay: Delay between retry attempts in seconds
             
         Returns:
-            Styled image as NumPy array
+            NumPy array containing the styled image
         """
-        # Encode image to base64
-        image_base64 = self._encode_image(image)
+        # Encode the input image to base64 data URI
+        image_data_uri = self._encode_image(image)
         
-        # Build API payload
-        payload = {
-            "image": image_base64,
+        # Prepare arguments for the fal_client API call
+        arguments = {
+            "image": image_data_uri,
             "prompt": prompt,
             "negative_prompt": negative_prompt,
             "guidance_scale": guidance_scale,
-            "num_inference_steps": num_inference_steps,
+            "num_inference_steps": num_inference_steps
         }
         
+        # Add seed if provided
         if seed is not None:
-            payload["seed"] = seed
+            arguments["seed"] = seed
         
-        # Make the API request
-        try:
-            logger.info(f"Applying style transfer with prompt: {prompt}")
-            response = self._make_request(payload, max_retries=max_retries)
-            
-            # Extract the first image from response
-            if "images" in response and response["images"]:
-                styled_image_base64 = response["images"][0]
-                styled_image = self._decode_image(styled_image_base64)
+        # Define callback for queue updates (for logging progress)
+        def on_queue_update(update):
+            if isinstance(update, fal_client.InProgress):
+                for log in update.logs:
+                    logger.info(f"Style transfer progress: {log.get('message', '')}")
+        
+        # Make API request with retries
+        for attempt in range(1, max_retries + 1):
+            try:
+                logger.info(f"Applying style transfer with prompt: '{prompt}' (attempt {attempt}/{max_retries})")
                 
-                # Log timing information if available
-                if "timing" in response:
-                    logger.info(f"Style transfer completed in {response['timing'].get('total', 0):.2f} seconds")
+                # Call Fal.ai API using the official client library
+                result = fal_client.subscribe(
+                    self.MODEL_ENDPOINT,
+                    arguments=arguments,
+                    with_logs=True,
+                    on_queue_update=on_queue_update,
+                )
                 
-                return styled_image
-            else:
-                raise ValueError("No images found in API response")
-                
-        except Exception as e:
-            logger.error(f"Style transfer failed: {str(e)}")
-            raise
+                # Check if the result contains images
+                if "images" in result and result["images"] and len(result["images"]) > 0:
+                    # Log success and timing information if available
+                    if "timings" in result:
+                        logger.info(f"Style transfer completed in {result['timings'].get('total', 0):.2f} seconds")
+                    
+                    # Get the first image from the result
+                    image_result = result["images"][0]
+                    
+                    # Convert the image to a NumPy array and return
+                    return self._decode_image(image_result)
+                else:
+                    raise ValueError("No images found in API response")
+                    
+            except Exception as e:
+                if attempt < max_retries:
+                    logger.warning(f"API request failed: {str(e)}. Retrying in {retry_delay} seconds...")
+                    time.sleep(retry_delay)
+                    # Increase delay for next retry
+                    retry_delay *= 1.5
+                else:
+                    logger.error(f"All retry attempts failed: {str(e)}")
+                    raise
+        
+        # This should not be reached due to exceptions above
+        raise RuntimeError("Failed to apply style transfer after all retry attempts")
     
     def generate_style_variations(
         self, 
         image: np.ndarray, 
         prompt: str, 
         num_variations: int = 3,
-        negative_prompt: str = "",
+        negative_prompt: str = "blurry, distorted architecture, unrealistic",
         guidance_scale: float = 7.5,
         num_inference_steps: int = 30,
         seed: Optional[int] = None,
         max_retries: int = 3
     ) -> List[np.ndarray]:
         """
-        Generate multiple style variations for an interior image.
+        Generate multiple style variations of an interior image.
         
         Args:
             image: Input image as NumPy array
@@ -240,29 +240,30 @@ class FluxClient:
         """
         variations = []
         
-        logger.info(f"Generating {num_variations} style variations with prompt: {prompt}")
+        # Use provided seed or generate random one
+        current_seed = seed if seed is not None else int(time.time())
+        
+        # Log what we're doing
+        logger.info(f"Generating {num_variations} style variations with prompt: '{prompt}'")
         
         for i in range(num_variations):
-            # Use different seeds for each variation if a seed is provided
-            current_seed = None if seed is None else seed + i
-            
             try:
-                # Generate a variation
-                logger.info(f"Generating variation {i+1}/{num_variations}")
+                # Apply style transfer with incrementing seed
                 variation = self.apply_style_transfer(
                     image=image,
                     prompt=prompt,
                     negative_prompt=negative_prompt,
                     guidance_scale=guidance_scale,
                     num_inference_steps=num_inference_steps,
-                    seed=current_seed,
+                    seed=current_seed + i,
                     max_retries=max_retries
                 )
                 
                 variations.append(variation)
+                logger.info(f"Generated variation {i+1}/{num_variations} with seed {current_seed + i}")
                 
             except Exception as e:
                 logger.error(f"Failed to generate variation {i+1}: {str(e)}")
-                # Continue with next variation instead of failing completely
+                # Continue generating remaining variations
         
         return variations

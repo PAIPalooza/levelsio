@@ -13,10 +13,16 @@ requests>=2.28.0       # HTTP requests
 segment-anything>=1.0  # Meta's SAM
 python-dotenv>=1.0.0   # Environment variable management
 
+# API Framework
+fastapi>=0.103.1       # REST API framework with automatic Swagger support
+uvicorn>=0.23.2        # ASGI server
+pydantic>=2.4.2        # Data validation
+
 # Testing
 pytest>=7.3.1
 pytest-cov>=4.1.0
 pytest-mock>=3.10.0    # Mocking for tests
+httpx>=0.24.1          # HTTP client for testing APIs
 
 # Notebook
 jupyter>=1.0.0

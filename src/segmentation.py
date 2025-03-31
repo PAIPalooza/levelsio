@@ -424,39 +424,68 @@ class SegmentationHandler:
         
         # Walls mask
         axes[0, 1].imshow(image)
-        axes[0, 1].imshow(masks["walls"], alpha=0.7, cmap="cool")
+        if "walls" in masks:
+            axes[0, 1].imshow(masks["walls"], alpha=0.7, cmap="cool")
         axes[0, 1].set_title("Walls")
         axes[0, 1].axis("off")
         
         # Floor mask
         axes[0, 2].imshow(image)
-        axes[0, 2].imshow(masks["floor"], alpha=0.7, cmap="summer")
+        if "floor" in masks:
+            axes[0, 2].imshow(masks["floor"], alpha=0.7, cmap="summer")
         axes[0, 2].set_title("Floor")
         axes[0, 2].axis("off")
         
         # Ceiling mask
         axes[1, 0].imshow(image)
-        axes[1, 0].imshow(masks["ceiling"], alpha=0.7, cmap="autumn")
+        if "ceiling" in masks:
+            axes[1, 0].imshow(masks["ceiling"], alpha=0.7, cmap="autumn")
         axes[1, 0].set_title("Ceiling")
         axes[1, 0].axis("off")
         
         # Windows mask
         axes[1, 1].imshow(image)
-        axes[1, 1].imshow(masks["windows"], alpha=0.7, cmap="winter")
+        if "windows" in masks:
+            axes[1, 1].imshow(masks["windows"], alpha=0.7, cmap="winter")
         axes[1, 1].set_title("Windows")
         axes[1, 1].axis("off")
         
         # Structure mask (combined)
         axes[1, 2].imshow(image)
-        axes[1, 2].imshow(masks["structure"], alpha=0.7, cmap="plasma")
+        if "structure" in masks:
+            axes[1, 2].imshow(masks["structure"], alpha=0.7, cmap="plasma")
         axes[1, 2].set_title("All Structure")
         axes[1, 2].axis("off")
         
         # Render figure to numpy array
         fig.tight_layout()
         fig.canvas.draw()
-        vis_image = np.frombuffer(fig.canvas.tostring_rgb(), dtype=np.uint8)
-        vis_image = vis_image.reshape(fig.canvas.get_width_height()[::-1] + (3,))
+        
+        # Fix for different Matplotlib backends (including MacOS)
+        if hasattr(fig.canvas, 'tostring_rgb'):
+            vis_data = fig.canvas.tostring_rgb()
+        elif hasattr(fig.canvas, 'tostring_argb'):
+            # Convert ARGB to RGB
+            vis_data_argb = fig.canvas.tostring_argb()
+            vis_data = b''
+            for i in range(0, len(vis_data_argb), 4):
+                vis_data += vis_data_argb[i+1:i+4]
+        else:
+            # Manual fallback
+            renderer = fig.canvas.get_renderer()
+            buffer = renderer.buffer_rgba()
+            if hasattr(buffer, 'tobytes'):
+                vis_data = buffer.tobytes()[1::4] + buffer.tobytes()[2::4] + buffer.tobytes()[3::4]
+            else:
+                # Last resort fallback - just return a blank image
+                logger.warning("Could not convert Matplotlib figure to image - using fallback")
+                vis_image = np.zeros((h*2, w*3, 3), dtype=np.uint8)
+                plt.close(fig)
+                return vis_image
+        
+        # Use consistent dimensions for the image based on the figure size
+        w, h = fig.canvas.get_width_height()
+        vis_image = np.frombuffer(vis_data, dtype=np.uint8).reshape((h, w, 3))
         plt.close(fig)
         
         return vis_image

@@ -2,8 +2,8 @@
 API routes package for Interior Style Transfer POC.
 
 This package contains all the API routes for the Interior Style Transfer
-application. It follows Behavior-Driven Development principles from the
-Semantic Seed Coding Standards (SSCS).
+application, organized by functionality. Each module follows Behavior-Driven
+Development principles from the Semantic Seed Coding Standards (SSCS).
 """
 
 from fastapi import APIRouter

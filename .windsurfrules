@@ -1,0 +1,122 @@
+Here’s your **revised ruleset** for this project’s workspace, adapted from the refined Semantic Seed Coding Standards and optimized for LLM-accelerated enterprise development using **Cody + SSCS**:
+
+---
+
+# ✅ Interior Style Transfer POC – Workspace Coding Standards
+
+## 🚀 Development Philosophy
+This project uses **Test-Driven Development (TDD)** and **Behavior-Driven Development (BDD)** alongside **Cody AI** for fast, reliable, enterprise-quality software. It follows a lean XP approach with Semantic Seed Venture Studio Coding Standards V2.0 (refined).
+
+---
+
+## 📋 Backlog Management (via GitHub Issues)
+
+### Workflow
+- Begin work on the top unstarted item in the backlog.
+- Use the following **branch naming** rules:
+  - `feature/{issue-id}-{short-title}`
+  - `bug/{issue-id}-{short-title}`
+  - `chore/{issue-id}-{short-title}`
+- Follow this flow:
+  1. Write failing tests (**Red**)
+  2. Implement minimal code to pass (**Green**)
+  3. Refactor, document, and commit (**Refactor**)
+  4. Open PR, mark issue as **Finished**, and assign for review
+  5. After merge, mark as **Delivered**
+  6. PM reviews and accepts or rejects the story
+
+### LLM Prompts
+- “What is the correct branching strategy for this task?”
+- “What’s the right story type and estimate for this?”
+- “Convert this WIP commit into a detailed PR summary.”
+
+---
+
+## 📖 Story Types & Estimation
+
+### Labels
+- **Feature** – new behavior or enhancement
+- **Bug** – defect or regression
+- **Chore** – maintenance or infra work
+
+### Estimation Scale (Fibonacci)
+- `0`: trivial fixes
+- `1`: straightforward task
+- `2`: medium complexity
+- `3+`: complex or multi-step (break into smaller stories if possible)
+
+### Prompt
+> “Given this user story, classify it and estimate complexity using Fibonacci scale. Justify the estimate.”
+
+---
+
+## 🎨 Code Style
+
+- **Languages**: Python (backend), Jupyter (notebook), Markdown
+- **Naming**: `camelCase` for variables/functions, `PascalCase` for classes
+- **Formatting**: 4-space indent, 80-character line width
+- **Comments**: Clear, meaningful, not outdated
+
+### Prompt
+> “Reformat this function to match best practices and add a descriptive docstring.”
+
+---
+
+## 🧪 Testing Strategy (TDD/BDD)
+
+### Test Types
+- **Unit Tests**: BDD-style, cover individual functions/modules
+- **Integration Tests**: Validate data flows across modules (e.g., segmentation + generation)
+- **Functional Tests**: Simulate real user scenarios
+- **Evaluation Tests**: Image comparison via SSIM/MSE
+
+### Test Organization
+- `tests/unit/`
+- `tests/integration/`
+- `tests/evaluation/`
+
+### Prompt
+> “Generate Jest/Mocha/Pytest tests for this function based on this behavior description.”
+
+---
+
+## 🔄 CI/CD
+
+- All tests must pass before merge
+- PR triggers GitHub Actions or Fal deployment hooks
+- Ensure:
+  - Install > Test > Lint > Deploy (in staging)
+  - Optional: Publish outputs to artifacts folder
+
+### Prompt
+> “Generate a CI/CD pipeline config for running notebook validation, test coverage, and linting before deployment.”
+
+---
+
+## 🔧 Git/GitHub
+
+- **Daily WIP commits required**
+- **End-of-day commit must summarize work done**
+- **Pull requests must include:**
+  - Task summary
+  - Screenshots (if applicable)
+  - Checklist of what was completed
+
+### Prompt
+> “Summarize these Git commits into a clear PR description for PM review.”
+
+---
+
+## 📌 Summary
+
+- Follow lean agile: focus on finished, testable, working code daily
+- Use Cody for:
+  - Writing/redrafting code
+  - Test generation
+  - Refactoring and documentation
+  - PR summaries and checklist generation
+- Use SSCS to keep your workspace readable, testable, and reproducible
+- Review prompts embedded in this doc as **part of your development flow**
+
+---
+

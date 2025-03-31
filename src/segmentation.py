@@ -460,3 +460,139 @@ class SegmentationHandler:
         plt.close(fig)
         
         return vis_image
+    
+    def apply_structure_preservation(
+        self, 
+        original_image: np.ndarray, 
+        stylized_image: np.ndarray, 
+        structure_mask: np.ndarray
+    ) -> np.ndarray:
+        """
+        Apply structure preservation to maintain architectural elements.
+        
+        Takes structural elements from the original image and non-structural
+        elements from the stylized image, to preserve room architecture
+        while applying style transfer.
+        
+        Args:
+            original_image: Input image containing structure to preserve
+            stylized_image: Stylized image to apply in non-structure areas
+            structure_mask: Binary mask where 1=structure, 0=non-structure
+            
+        Returns:
+            Combined image with preserved structure
+        """
+        # Validate inputs
+        if original_image.shape != stylized_image.shape:
+            raise ValueError("Original and stylized images must have the same dimensions")
+            
+        if original_image.shape[:2] != structure_mask.shape[:2]:
+            raise ValueError("Mask dimensions must match image dimensions")
+        
+        # Ensure mask is binary and in the right format
+        structure_mask_binary = (structure_mask > 0).astype(np.uint8)
+        
+        # Ensure the mask is 3-channel for color images
+        if len(structure_mask_binary.shape) == 2 and len(original_image.shape) == 3:
+            structure_mask_binary = np.repeat(
+                structure_mask_binary[:, :, np.newaxis], 3, axis=2
+            )
+        
+        # Create inverted mask for non-structure elements
+        non_structure_mask_binary = 1 - structure_mask_binary
+        
+        # Extract structure from original and non-structure from stylized
+        structure_elements = original_image * structure_mask_binary
+        non_structure_elements = stylized_image * non_structure_mask_binary
+        
+        # Combine the two components
+        preserved_image = structure_elements + non_structure_elements
+        
+        logger.info("Applied structure preservation to stylized image")
+        return preserved_image
+    
+    def preserve_structure_in_styles(
+        self, 
+        original_image: np.ndarray, 
+        style_variations: List[np.ndarray], 
+        structure_mask: np.ndarray
+    ) -> List[np.ndarray]:
+        """
+        Apply structure preservation across multiple style variations.
+        
+        Preserves architectural elements from the original image across
+        multiple style variations, useful for presenting options to user.
+        
+        Args:
+            original_image: Input image containing structure to preserve
+            style_variations: List of stylized images to apply structure preservation to
+            structure_mask: Binary mask where 1=structure, 0=non-structure
+            
+        Returns:
+            List of images with preserved structure
+        """
+        if not style_variations:
+            return []
+            
+        # Apply structure preservation to each style variation
+        preserved_variations = []
+        
+        for i, style_variation in enumerate(style_variations):
+            logger.info(f"Applying structure preservation to style variation {i+1}/{len(style_variations)}")
+            preserved = self.apply_structure_preservation(
+                original_image=original_image,
+                stylized_image=style_variation,
+                structure_mask=structure_mask
+            )
+            preserved_variations.append(preserved)
+            
+        return preserved_variations
+        
+    def estimate_structure_preservation_score(
+        self, 
+        original_image: np.ndarray, 
+        stylized_image: np.ndarray, 
+        structure_mask: np.ndarray
+    ) -> float:
+        """
+        Calculate a score indicating structure preservation quality.
+        
+        Measures how well structural elements (walls, floors, etc.) from
+        the original image are preserved in the stylized output.
+        
+        Args:
+            original_image: Original image containing structure
+            stylized_image: Stylized image to evaluate
+            structure_mask: Binary mask where 1=structure, 0=non-structure
+            
+        Returns:
+            Score between 0-1, where 1 means perfect preservation
+        """
+        # Validate inputs
+        if original_image.shape != stylized_image.shape:
+            raise ValueError("Original and stylized images must have the same dimensions")
+            
+        if original_image.shape[:2] != structure_mask.shape[:2]:
+            raise ValueError("Mask dimensions must match image dimensions")
+        
+        # Ensure mask is binary
+        structure_mask_binary = (structure_mask > 0).astype(bool)
+        
+        # Extract structure pixels from both images
+        original_structure = original_image[structure_mask_binary]
+        stylized_structure = stylized_image[structure_mask_binary]
+        
+        # If no structure pixels, return 0
+        if len(original_structure) == 0:
+            return 0.0
+        
+        # Calculate Mean Squared Error (MSE) for structure regions
+        mse = np.mean((original_structure.astype(float) - stylized_structure.astype(float)) ** 2)
+        
+        # Normalize MSE to 0-1 range where 1 is perfect preservation
+        # Maximum possible MSE for uint8 images is 255^2
+        max_mse = 255.0 ** 2
+        score = 1.0 - min(mse / max_mse, 1.0)
+        
+        logger.info(f"Structure preservation score: {score:.4f}")
+        return score

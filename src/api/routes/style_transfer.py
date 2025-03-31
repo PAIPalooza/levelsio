@@ -9,10 +9,10 @@ from the Semantic Seed Coding Standards (SSCS).
 import base64
 import io
 import traceback
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 import numpy as np
 from PIL import Image
-from fastapi import APIRouter, Depends, HTTPException, status, Header
+from fastapi import APIRouter, Depends, HTTPException, status, Header, File, UploadFile, Form
 from pydantic import ValidationError
 
 from src.api.models.style_transfer import (
@@ -28,6 +28,7 @@ from src.style_transfer import StyleTransferService
 from src.flux_integration import FluxClient
 from src.segmentation import SegmentationHandler
 
+# Create router
 router = APIRouter()
 
 
@@ -114,6 +115,71 @@ def resize_image_to_match(image_to_resize: np.ndarray, target_image: np.ndarray)
 
 
 @router.post(
+    "/transfer",
+    status_code=status.HTTP_200_OK,
+    summary="Apply style transfer to an interior image (File Upload)",
+    description="""
+    Transform an interior image according to a specific interior design style.
+    
+    This endpoint accepts an image file and a style name, and returns a
+    transformed version of the image in the specified style.
+    """
+)
+async def transfer_style(
+    style: str = Form(..., description="Name of the style to apply"),
+    room_type: str = Form("interior", description="Type of room in the image"),
+    image: UploadFile = File(..., description="Interior image to transform"),
+    details: Optional[str] = Form(None, description="Additional style details"),
+    api_key: str = Depends(verify_api_key)
+):
+    """
+    Apply style transfer to an interior image.
+    
+    Args:
+        style: Name of the style to apply
+        room_type: Type of room in the image
+        image: Interior image to transform
+        details: Additional style details
+        api_key: API key for authentication
+        
+    Returns:
+        Transformed image URL and details
+    """
+    try:
+        # Read image file
+        contents = await image.read()
+        
+        # Initialize style transfer service
+        service = StyleTransferService()
+        
+        # Generate style prompt
+        style_prompt = service.generate_style_prompt(
+            style_name=style,
+            room_type=room_type,
+            details=details
+        )
+        
+        # Apply style transfer
+        result = service.apply_style(
+            image_data=contents,
+            style_prompt=style_prompt
+        )
+        
+        return {
+            "styled_image_url": result["image_url"],
+            "style": style,
+            "prompt_used": style_prompt,
+            "processing_time_ms": result["processing_time_ms"]
+        }
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Style transfer failed: {str(e)}"
+        )
+
+
+@router.post(
     "/apply",
     response_model=StyleTransferResponse,
     status_code=status.HTTP_200_OK,
@@ -126,27 +192,7 @@ def resize_image_to_match(image_to_resize: np.ndarray, target_image: np.ndarray)
     
     The response includes the styled image and information about whether structure
     preservation was applied.
-    """,
-    responses={
-        200: {
-            "description": "Style transfer successfully applied",
-            "content": {
-                "application/json": {
-                    "example": {
-                        "styled_image": "data:image/jpeg;base64,/9j/4AAQSkZJRgABA...",
-                        "structure_preserved": True,
-                        "metrics": {
-                            "ssim": 0.92,
-                            "mse": 105.34
-                        }
-                    }
-                }
-            }
-        },
-        401: {"description": "Invalid or missing API key"},
-        422: {"description": "Validation error in request data"},
-        500: {"description": "Internal server error during style transfer"}
-    }
+    """
 )
 async def apply_style(
     request: StyleTransferRequest,
@@ -156,43 +202,42 @@ async def apply_style(
     Apply style transfer to an interior image.
     
     Given a base64-encoded image and style specifications, this endpoint
-    applies the requested style transfer and returns the styled image.
+    applies the requested style transformation and returns the result.
+    
+    Args:
+        request: Request containing image and style specifications
+        api_key: API key for authentication
+        
+    Returns:
+        Transformed image and processing details
     """
     try:
-        # Initialize the style transfer service
-        flux_client = FluxClient(api_key=settings.FAL_KEY)
-        style_service = StyleTransferService(flux_client)
+        # Initialize required services
+        style_service = StyleTransferService()
+        segmentation_handler = SegmentationHandler()
         
-        # Decode the input image
+        # Decode the base64 image
         image = decode_base64_image(request.image)
         
-        # Process structure mask if needed
-        structure_mask = None
-        if request.preserve_structure:
-            if request.structure_mask:
-                structure_mask = decode_base64_image(request.structure_mask)
-            else:
-                # Generate structure mask using SegmentationHandler
-                segmentation_handler = SegmentationHandler()
-                # Call generate_masks to get all masks including structure
-                masks = segmentation_handler.generate_masks(image)
-                # Extract the structure mask from the result
-                structure_mask = masks.get("structure", None)
-                
-                if structure_mask is None:
-                    raise ValueError("Failed to generate structure mask")
-        
-        # Apply style transfer based on request parameters
-        if isinstance(request.style, StyleType):
-            style_prompt = f"Interior in {request.style.value} style"
+        # Generate style prompt from the specified style or use custom prompt
+        if request.custom_prompt:
+            style_prompt = request.custom_prompt
         else:
-            style_prompt = f"Interior in {request.style} style"
+            style_prompt = style_service.generate_style_prompt(
+                style_name=request.style.value,
+                room_type=request.room_type,
+                details=request.details
+            )
         
-        # Apply style transfer with structure preservation if needed
-        if request.preserve_structure and structure_mask is not None:
-            # First apply style transfer to get styled image
-            styled_image = style_service.apply_style_only(
-                image=image, 
+        # Check if we need to preserve structure
+        if request.preserve_structure:
+            # Generate structure mask
+            structure_mask = segmentation_handler.generate_structure_mask(image)
+            
+            # Apply style transfer with structure preservation
+            styled_image = style_service.apply_style_with_structure_preservation(
+                image=image,
+                structure_mask=structure_mask,
                 style_prompt=style_prompt
             )
             
@@ -200,14 +245,6 @@ async def apply_style(
             if styled_image.shape[:2] != image.shape[:2]:
                 print(f"Resizing styled image from {styled_image.shape} to match original {image.shape}")
                 styled_image = resize_image_to_match(styled_image, image)
-            
-            # Then apply structure preservation using segmentation handler
-            segmentation_handler = segmentation_handler or SegmentationHandler()
-            styled_image = segmentation_handler.apply_structure_preservation(
-                original_image=image,
-                stylized_image=styled_image,
-                structure_mask=structure_mask
-            )
         else:
             # Simple style transfer without structure preservation
             styled_image = style_service.apply_style_only(
@@ -220,14 +257,15 @@ async def apply_style(
                 print(f"Resizing styled image from {styled_image.shape} to match original {image.shape}")
                 styled_image = resize_image_to_match(styled_image, image)
         
-        # Encode the styled image to base64
-        styled_image_base64 = encode_image_to_base64(styled_image)
+        # Encode the result as base64
+        styled_image_b64 = encode_image_to_base64(styled_image)
         
-        # Create and return the response
+        # Return the response
         return StyleTransferResponse(
-            styled_image=styled_image_base64,
-            structure_preserved=request.preserve_structure,
-            metrics=None  # Metrics could be added here if requested
+            styled_image=styled_image_b64,
+            style=request.style.value if not request.custom_prompt else "custom",
+            prompt_used=style_prompt,
+            structure_preserved=request.preserve_structure
         )
         
     except ValidationError as e:
@@ -248,71 +286,61 @@ async def apply_style(
     "/batch",
     response_model=BatchStyleResponse,
     status_code=status.HTTP_200_OK,
-    summary="Apply batch style transfer to multiple images",
+    summary="Apply style transfer to multiple interior images",
     description="""
-    Process multiple images with their respective styles in a single request.
+    Process multiple images with the same style and settings in one request.
     
-    This endpoint is optimized for applying style transfer to multiple images
-    in a single API call, which is useful for generating style variations or
-    processing a collection of images efficiently.
-    
-    The response includes all styled images and any errors that occurred
-    during processing.
-    """,
-    responses={
-        200: {"description": "Batch style transfer successful"},
-        401: {"description": "Invalid or missing API key"},
-        422: {"description": "Validation error in request data"},
-        500: {"description": "Internal server error during batch processing"}
-    }
+    This batch endpoint is useful for applying consistent styling across
+    a set of interior images, with optional structure preservation.
+    """
 )
 async def batch_style(
     request: BatchStyleRequest,
     api_key: str = Depends(verify_api_key)
 ) -> BatchStyleResponse:
     """
-    Apply batch style transfer to multiple interior images.
+    Apply style transfer to multiple interior images in a batch.
     
-    Process multiple images with their corresponding styles in a single request,
-    optimizing for efficiency when working with collections of images.
+    Args:
+        request: Batch request containing multiple images and style specifications
+        api_key: API key for authentication
+        
+    Returns:
+        Batch response with styled images and any errors that occurred
     """
     try:
-        # Initialize services
-        flux_client = FluxClient(api_key=settings.FAL_KEY)
-        style_service = StyleTransferService(flux_client)
+        # Initialize required services
+        style_service = StyleTransferService()
+        segmentation_handler = SegmentationHandler()
         
-        # Initialize segmentation handler if structure preservation is requested
-        segmentation_handler = None
-        if request.preserve_structure:
-            segmentation_handler = SegmentationHandler()
+        # Generate style prompt
+        if request.custom_prompt:
+            style_prompt = request.custom_prompt
+        else:
+            style_prompt = style_service.generate_style_prompt(
+                style_name=request.style.value,
+                room_type=request.room_type,
+                details=request.details
+            )
         
         # Process each image
         styled_images = []
         errors = {}
         
-        for idx, (image_b64, style) in enumerate(zip(request.images, request.styles)):
+        for idx, base64_image in enumerate(request.images):
             try:
-                # Decode input image
-                image = decode_base64_image(image_b64)
+                # Decode the base64 image
+                image = decode_base64_image(base64_image)
                 
-                # Generate structure mask if needed
-                structure_mask = None
-                if request.preserve_structure and segmentation_handler:
-                    # Generate masks and extract structure mask
-                    masks = segmentation_handler.generate_masks(image)
-                    structure_mask = masks.get("structure", None)
-                
-                # Format style prompt
-                if isinstance(style, StyleType):
-                    style_prompt = f"Interior in {style.value} style"
-                else:
-                    style_prompt = f"Interior in {style} style"
-                
-                # Apply style transfer
-                if request.preserve_structure and structure_mask is not None:
-                    # First apply style transfer to get styled image
-                    styled_image = style_service.apply_style_only(
-                        image=image, 
+                # Apply structure preservation if requested
+                if request.preserve_structure:
+                    # Generate structure mask
+                    structure_mask = segmentation_handler.generate_structure_mask(image)
+                    
+                    # Apply style transfer with structure preservation
+                    styled_image = style_service.apply_style_with_structure_preservation(
+                        image=image,
+                        structure_mask=structure_mask,
                         style_prompt=style_prompt
                     )
                     

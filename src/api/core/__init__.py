@@ -1,7 +1,7 @@
 """
-Core API utilities and configuration.
+Core API utilities for Interior Style Transfer POC.
 
-This package contains core configuration and utilities for the API,
-following the Semantic Seed Coding Standards (SSCS) for maintainability
-and security best practices.
+This package contains core utilities for the API, including authentication,
+configuration, and error handling following the Semantic Seed Coding Standards (SSCS)
+for maintainability and security best practices.
 """

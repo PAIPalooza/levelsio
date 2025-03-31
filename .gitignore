@@ -172,3 +172,33 @@ cython_debug/
 
 # PyPI configuration file
 .pypirc
+
+# Model weights and large binary files
+*.pth
+*.pt
+*.h5
+*.onnx
+*.ckpt
+*.safetensors
+*.bin
+models/
+!models/.gitkeep
+
+# Test images (should be stored elsewhere, not in Git)
+assets/test_images/
+!assets/test_images/.gitkeep
+
+# Output files
+assets/outputs/
+!assets/outputs/.gitkeep
+assets/masks/
+!assets/masks/.gitkeep
+
+# Virtual environments
+venv/
+
+# Local development
+.DS_Store
+.vscode/
+.idea/
+.windsurfrules

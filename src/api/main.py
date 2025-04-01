@@ -167,20 +167,20 @@ def create_app() -> FastAPI:
         return {"valid": True, "message": "API key is valid"}
     
     # Include all route modules
-    app.include_router(style_transfer.router, prefix="/api/v1/style")
-    app.include_router(segmentation.router, prefix="/api/v1/segmentation")
-    app.include_router(evaluation.router, prefix="/api/v1/evaluation")
-    app.include_router(prompts.router, prefix="/api/v1/prompts")
+    app.include_router(style_transfer.router, prefix="/api/v1/style", tags=["Style Transfer"])
+    app.include_router(segmentation.router, prefix="/api/v1/segmentation", tags=["Segmentation"])
+    app.include_router(evaluation.router, prefix="/api/v1/evaluation", tags=["Evaluation"])
+    app.include_router(prompts.router, prefix="/api/v1/prompts", tags=["Prompts"])
     
     # Add simple root-level routes for convenience
-    app.include_router(style_transfer.router, prefix="/style")
-    app.include_router(segmentation.router, prefix="/segmentation")
-    app.include_router(evaluation.router, prefix="/evaluation")
-    app.include_router(prompts.router, prefix="/prompts")
+    app.include_router(style_transfer.router, prefix="/style", tags=["Style Transfer"])
+    app.include_router(segmentation.router, prefix="/segmentation", tags=["Segmentation"])
+    app.include_router(evaluation.router, prefix="/evaluation", tags=["Evaluation"])
+    app.include_router(prompts.router, prefix="/prompts", tags=["Prompts"])
     
     # Customize OpenAPI schema
     def custom_openapi():
-        """Customize OpenAPI schema with security information."""
+        """Customize OpenAPI schema with security information and tag descriptions."""
         if app.openapi_schema:
             return app.openapi_schema
         
@@ -200,6 +200,26 @@ def create_app() -> FastAPI:
                 "description": "API key for authentication",
             }
         }
+        
+        # Add tag descriptions for better organization
+        openapi_schema["tags"] = [
+            {
+                "name": "Style Transfer",
+                "description": "Endpoints for applying interior design styles to room images"
+            },
+            {
+                "name": "Segmentation",
+                "description": "Endpoints for segmenting interior images into structural components"
+            },
+            {
+                "name": "Evaluation",
+                "description": "Endpoints for evaluating the quality of style transfer results"
+            },
+            {
+                "name": "Prompts",
+                "description": "Endpoints for managing and generating style prompt templates"
+            }
+        ]
         
         # Apply security to all operations
         for path in openapi_schema["paths"]:

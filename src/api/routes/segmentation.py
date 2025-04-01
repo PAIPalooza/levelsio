@@ -14,6 +14,7 @@ import numpy as np
 from PIL import Image
 from fastapi import APIRouter, Depends, HTTPException, status, Header, File, UploadFile, Form
 from pydantic import ValidationError
+import logging
 
 from src.api.models.segmentation import (
     SegmentationRequest,
@@ -31,24 +32,24 @@ from src.segmentation import SegmentationHandler
 router = APIRouter()
 
 # Helper functions for image conversion
-def decode_base64_image(base64_string: str) -> np.ndarray:
+def decodeBase64Image(base64String: str) -> np.ndarray:
     """Decode a base64 string to a numpy array image."""
     try:
         # Remove data URI scheme if present
-        if ',' in base64_string:
-            base64_string = base64_string.split(',', 1)[1]
+        if ',' in base64String:
+            base64String = base64String.split(',', 1)[1]
         
         # Decode base64 to bytes
-        image_bytes = base64.b64decode(base64_string)
+        imageBytes = base64.b64decode(base64String)
         
         # Convert bytes to numpy array
-        image = Image.open(io.BytesIO(image_bytes))
+        image = Image.open(io.BytesIO(imageBytes))
         return np.array(image)
     except Exception as e:
         print(f"Error decoding base64 image: {str(e)}")
         raise
 
-def encode_mask_to_base64(mask: np.ndarray) -> str:
+def encodeMaskToBase64(mask: np.ndarray) -> str:
     """
     Encode a binary mask as a base64 string with data URI.
     
@@ -60,14 +61,14 @@ def encode_mask_to_base64(mask: np.ndarray) -> str:
     """
     try:
         # Ensure mask is binary and convert to uint8
-        binary_mask = (mask > 0).astype(np.uint8) * 255
+        binaryMask = (mask > 0).astype(np.uint8) * 255
         
         # Convert to PIL image
-        pil_mask = Image.fromarray(binary_mask)
+        pilMask = Image.fromarray(binaryMask)
         
         # Save to bytes buffer
         buffer = io.BytesIO()
-        pil_mask.save(buffer, format="PNG")
+        pilMask.save(buffer, format="PNG")
         buffer.seek(0)
         
         # Encode as base64 with data URI prefix
@@ -77,20 +78,20 @@ def encode_mask_to_base64(mask: np.ndarray) -> str:
         print(f"Error encoding mask to base64: {str(e)}")
         raise
 
-def encode_image_to_base64(image: np.ndarray) -> str:
+def encodeImageToBase64(image: np.ndarray) -> str:
     """Encode a numpy array image to a base64 string."""
     try:
         # Convert numpy array to PIL Image
-        pil_image = Image.fromarray(image)
+        pilImage = Image.fromarray(image)
         
         # Convert PIL Image to bytes
         buffer = io.BytesIO()
-        pil_image.save(buffer, format="PNG")
+        pilImage.save(buffer, format="PNG")
         buffer.seek(0)
         
         # Encode bytes to base64
-        base64_encoded = base64.b64encode(buffer.getvalue()).decode('utf-8')
-        return f"data:image/png;base64,{base64_encoded}"
+        base64Encoded = base64.b64encode(buffer.getvalue()).decode('utf-8')
+        return f"data:image/png;base64,{base64Encoded}"
     except Exception as e:
         print(f"Error encoding image to base64: {str(e)}")
         raise
@@ -98,6 +99,7 @@ def encode_image_to_base64(image: np.ndarray) -> str:
 
 @router.post(
     "/segment",
+    response_model=SegmentationResponse,
     status_code=status.HTTP_200_OK,
     summary="Segment an interior image (File Upload)",
     description="""
@@ -107,56 +109,59 @@ def encode_image_to_base64(image: np.ndarray) -> str:
     identifying different elements in the interior space.
     """
 )
-async def segment_interior(
+async def segmentImage(
     image: UploadFile = File(..., description="Interior image to segment"),
-    detail_level: str = Form("medium", description="Level of segmentation detail"),
-    api_key: str = Depends(verify_api_key)
+    detailLevel: str = Form("medium", description="Level of segmentation detail"),
+    apiKey: str = Depends(verify_api_key)
 ):
     """
     Segment an interior image into different regions or elements.
     
     Args:
         image: Interior image to segment
-        detail_level: Level of segmentation detail (low, medium, high)
-        api_key: API key for authentication
+        detailLevel: Level of segmentation detail (low, medium, high)
+        apiKey: API key for authentication
         
     Returns:
         Segmentation data for the image
     """
     try:
         # Read image content
-        image_content = await image.read()
+        imageContent = await image.read()
         
         # Initialize segmentation handler
-        segmentation_handler = SegmentationHandler()
+        segmentationHandler = SegmentationHandler()
         
         # Convert image content to numpy array
-        image = Image.open(io.BytesIO(image_content))
-        image_array = np.array(image)
+        image = Image.open(io.BytesIO(imageContent))
+        imageArray = np.array(image)
         
         # Generate segmentation masks
-        masks = segmentation_handler.generate_masks(image_array)
+        masks = segmentationHandler.generateMasks(imageArray)
         
         # Convert masks to base64 for response
-        mask_results = {}
-        for mask_name, mask in masks.items():
-            mask_results[mask_name] = encode_mask_to_base64(mask)
+        maskResults = {}
+        for maskName, mask in masks.items():
+            maskResults[maskName] = encodeMaskToBase64(mask)
         
         # Return segmentation results
         return {
-            "masks": mask_results,
-            "detail_level": detail_level,
-            "image_dimensions": {
-                "width": image_array.shape[1],
-                "height": image_array.shape[0]
+            "masks": maskResults,
+            "detailLevel": detailLevel,
+            "imageDimensions": {
+                "width": imageArray.shape[1],
+                "height": imageArray.shape[0]
             }
         }
     except Exception as e:
-        error_details = traceback.format_exc()
-        print(f"Error in segmentation: {str(e)}\n{error_details}")
+        errorDetails = traceback.format_exc()
+        print(f"Error in segmentation: {str(e)}\n{errorDetails}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Segmentation failed: {str(e)}"
+            detail={
+                "message": "Segmentation failed",
+                "details": {"reason": "segmentation_error", "error": str(e)}
+            }
         )
 
 
@@ -175,9 +180,9 @@ async def segment_interior(
     The response includes the segmentation mask and optional visualization overlays.
     """
 )
-async def segment_interior_api(
+async def segmentImageApi(
     request: SegmentationRequest,
-    api_key: str = Depends(verify_api_key)
+    apiKey: str = Depends(verify_api_key)
 ) -> SegmentationResponse:
     """
     Segment an interior image to identify different components.
@@ -187,139 +192,145 @@ async def segment_interior_api(
     
     Args:
         request: Segmentation request with image and parameters
-        api_key: API key for authentication
+        apiKey: API key for authentication
         
     Returns:
         Segmentation results with masks and visualizations
     """
     try:
         # Initialize the segmentation handler
-        segmentation_handler = SegmentationHandler()
+        segmentationHandler = SegmentationHandler()
         
         # Decode the input image
-        image = decode_base64_image(request.image)
+        image = decodeBase64Image(request.image)
         
         # Generate segmentation based on the requested type
-        if request.segmentation_type == SegmentationType.STRUCTURE:
+        if request.segmentationType == SegmentationType.STRUCTURE:
             # Generate structure masks
-            structure_mask = segmentation_handler.generate_structure_mask(image)
+            structureMask = segmentationHandler.generateStructureMask(image)
             
             # Create visualization if requested
             visualization = None
-            if request.create_visualization:
-                visualization = segmentation_handler.create_visualization(
+            if request.createVisualization:
+                visualization = segmentationHandler.createVisualization(
                     image, 
-                    structure_mask,
+                    structureMask,
                     alpha=0.5
                 )
-                visualization_base64 = encode_image_to_base64(visualization)
+                visualizationBase64 = encodeImageToBase64(visualization)
             else:
-                visualization_base64 = None
+                visualizationBase64 = None
             
             # Encode the structure mask
-            mask_base64 = encode_mask_to_base64(structure_mask)
+            maskBase64 = encodeMaskToBase64(structureMask)
             
             # Calculate mask statistics
-            mask_stats = {
-                "coverage": float(np.mean(structure_mask > 0)),
+            maskStats = {
+                "coverage": float(np.mean(structureMask > 0)),
                 "segments": 1
             }
             
             return SegmentationResponse(
-                mask=mask_base64,
-                visualization=visualization_base64,
-                stats=mask_stats
+                mask=maskBase64,
+                visualization=visualizationBase64,
+                stats=maskStats
             )
             
-        elif request.segmentation_type == SegmentationType.FURNITURE:
+        elif request.segmentationType == SegmentationType.FURNITURE:
             # Generate furniture masks
-            masks_dict = segmentation_handler.generate_masks(image)
+            masksDict = segmentationHandler.generateMasks(image)
             
             # Extract furniture related masks
-            furniture_mask = np.zeros_like(image[:,:,0], dtype=np.uint8)
+            furnitureMask = np.zeros_like(image[:,:,0], dtype=np.uint8)
             for item in ["sofa", "table", "chair", "bed", "cabinet", "furniture"]:
-                if item in masks_dict:
-                    furniture_mask = np.logical_or(furniture_mask, masks_dict[item]).astype(np.uint8)
+                if item in masksDict:
+                    furnitureMask = np.logical_or(furnitureMask, masksDict[item]).astype(np.uint8)
             
             # Create visualization if requested
             visualization = None
-            if request.create_visualization:
-                visualization = segmentation_handler.create_visualization(
+            if request.createVisualization:
+                visualization = segmentationHandler.createVisualization(
                     image, 
-                    furniture_mask,
+                    furnitureMask,
                     alpha=0.5
                 )
-                visualization_base64 = encode_image_to_base64(visualization)
+                visualizationBase64 = encodeImageToBase64(visualization)
             else:
-                visualization_base64 = None
+                visualizationBase64 = None
             
             # Encode the furniture mask
-            mask_base64 = encode_mask_to_base64(furniture_mask)
+            maskBase64 = encodeMaskToBase64(furnitureMask)
             
             # Calculate mask statistics
-            mask_stats = {
-                "coverage": float(np.mean(furniture_mask > 0)),
+            maskStats = {
+                "coverage": float(np.mean(furnitureMask > 0)),
                 "segments": 1
             }
             
             return SegmentationResponse(
-                mask=mask_base64,
-                visualization=visualization_base64,
-                stats=mask_stats
+                mask=maskBase64,
+                visualization=visualizationBase64,
+                stats=maskStats
             )
             
         else:  # Full segmentation
             # Generate all masks
-            masks_dict = segmentation_handler.generate_masks(image)
+            masksDict = segmentationHandler.generateMasks(image)
             
             # Create full visualization if requested
             visualization = None
-            if request.create_visualization:
+            if request.createVisualization:
                 # Create a colored visualization for all masks
-                visualization = segmentation_handler.create_multi_class_visualization(
+                visualization = segmentationHandler.createMultiClassVisualization(
                     image, 
-                    masks_dict
+                    masksDict
                 )
-                visualization_base64 = encode_image_to_base64(visualization)
+                visualizationBase64 = encodeImageToBase64(visualization)
             else:
-                visualization_base64 = None
+                visualizationBase64 = None
             
             # Convert masks to a single labeled mask for response
-            combined_mask = np.zeros_like(image[:,:,0], dtype=np.uint8)
-            mask_index = 1
+            combinedMask = np.zeros_like(image[:,:,0], dtype=np.uint8)
+            maskIndex = 1
             
-            for mask_name, mask in masks_dict.items():
+            for maskName, mask in masksDict.items():
                 # Add mask with unique index
-                combined_mask[mask > 0] = mask_index
-                mask_index += 1
+                combinedMask[mask > 0] = maskIndex
+                maskIndex += 1
             
             # Encode the combined mask
-            mask_base64 = encode_mask_to_base64(combined_mask)
+            maskBase64 = encodeMaskToBase64(combinedMask)
             
             # Calculate mask statistics
-            mask_stats = {
-                "coverage": float(np.mean(combined_mask > 0)),
-                "segments": len(masks_dict),
-                "segment_types": list(masks_dict.keys())
+            maskStats = {
+                "coverage": float(np.mean(combinedMask > 0)),
+                "segments": len(masksDict),
+                "segmentTypes": list(masksDict.keys())
             }
             
             return SegmentationResponse(
-                mask=mask_base64,
-                visualization=visualization_base64,
-                stats=mask_stats
+                mask=maskBase64,
+                visualization=visualizationBase64,
+                stats=maskStats
             )
         
     except ValidationError as e:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=f"Validation error: {str(e)}"
+            detail={
+                "message": "Validation error",
+                "details": {"reason": "validation_error", "error": str(e)}
+            }
         )
     except Exception as e:
-        error_details = traceback.format_exc()
-        print(f"Error in segmentation: {str(e)}\n{error_details}")
+        errorDetails = traceback.format_exc()
+        logging.error(f"Error in segmentation: {str(e)}\n{errorDetails}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"An error occurred during segmentation: {str(e)}"
+            detail={
+                "message": "Segmentation failed",
+                "details": {"reason": "segmentation_error", "error": str(e)}
+            }
         )
 
 
@@ -330,16 +341,16 @@ async def segment_interior_api(
     summary="Segment room using JSON input",
     description="Segment an interior room image using JSON input with base64-encoded image."
 )
-async def segment_interior_json(
+async def segmentInteriorJson(
     request: SegmentationJsonRequest,
-    api_key: str = Depends(verify_api_key)
+    apiKey: str = Depends(verify_api_key)
 ) -> SegmentationResponse:
     """
     Segment an interior room image using JSON input with base64-encoded image.
     
     Args:
         request: Segmentation request with JSON data
-        api_key: API key for authentication
+        apiKey: API key for authentication
         
     Returns:
         SegmentationResponse with segmentation results
@@ -366,26 +377,26 @@ async def segment_interior_json(
         )
     
     # Process detail level
-    detail_level = request.detail_level
+    detailLevel = request.detailLevel
     
     try:
         # Create a FluxAPI instance
         from src.flux_integration import FluxAPI
-        flux_api = FluxAPI()
+        fluxApi = FluxAPI()
         
         # Make the async API call properly
-        result = await flux_api.segment_interior(
-            image_base64=request.image,
-            detail_level=detail_level
+        result = await fluxApi.segmentInterior(
+            imageBase64=request.image,
+            detailLevel=detailLevel
         )
         
         # Return the response
         return SegmentationResponse(
             regions=result.get("regions", []),
-            detail_level=detail_level,
-            image_width=result.get("image_width", 1024),
-            image_height=result.get("image_height", 768),
-            processing_time=result.get("processing_time", 1.0)
+            detailLevel=detailLevel,
+            imageWidth=result.get("image_width", 1024),
+            imageHeight=result.get("image_height", 768),
+            processingTime=result.get("processing_time", 1.0)
         )
         
     except Exception as e:
@@ -393,8 +404,8 @@ async def segment_interior_json(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail={
-                "message": f"Segmentation failed: {str(e)}",
-                "details": {"api_name": "Flux API"}
+                "message": "Segmentation failed",
+                "details": {"reason": "segmentation_error", "error": str(e)}
             }
         )
 
@@ -411,9 +422,9 @@ async def segment_interior_json(
     generating structure, furniture, and decor masks for each image.
     """
 )
-async def batch_segment(
+async def batchSegment(
     request: BatchSegmentationRequest,
-    api_key: str = Depends(verify_api_key)
+    apiKey: str = Depends(verify_api_key)
 ) -> BatchSegmentationResponse:
     """
     Generate segmentation masks for multiple interior images.
@@ -423,62 +434,62 @@ async def batch_segment(
     
     Args:
         request: Batch segmentation request with multiple images
-        api_key: API key for authentication
+        apiKey: API key for authentication
         
     Returns:
         Batch response with masks for all images
     """
     try:
         # Initialize the segmentation handler
-        segmentation_handler = SegmentationHandler()
+        segmentationHandler = SegmentationHandler()
         
         # Process each image
         masks = []
         errors = {}
         
-        for idx, image_base64 in enumerate(request.images):
+        for idx, imageBase64 in enumerate(request.images):
             try:
                 # Decode the input image
-                image = decode_base64_image(image_base64)
+                image = decodeBase64Image(imageBase64)
                 
-                # Use generate_masks to get all masks
-                masks_dict = segmentation_handler.generate_masks(image)
+                # Use generateMasks to get all masks
+                masksDict = segmentationHandler.generateMasks(image)
                 
                 # Extract the individual masks
-                structure_mask = masks_dict.get("structure", np.zeros_like(image[:,:,0], dtype=np.uint8))
-                furniture_mask = np.zeros_like(image[:,:,0], dtype=np.uint8)
-                decor_mask = np.zeros_like(image[:,:,0], dtype=np.uint8)
+                structureMask = masksDict.get("structure", np.zeros_like(image[:,:,0], dtype=np.uint8))
+                furnitureMask = np.zeros_like(image[:,:,0], dtype=np.uint8)
+                decorMask = np.zeros_like(image[:,:,0], dtype=np.uint8)
                 
                 # Try to extract furniture mask from specific mask types
-                if "furniture" in masks_dict:
-                    furniture_mask = masks_dict["furniture"]
+                if "furniture" in masksDict:
+                    furnitureMask = masksDict["furniture"]
                 else:
                     # Combine sofa, table, chair masks if available
                     for item in ["sofa", "table", "chair", "bed"]:
-                        if item in masks_dict:
-                            furniture_mask = np.logical_or(furniture_mask, masks_dict[item]).astype(np.uint8)
+                        if item in masksDict:
+                            furnitureMask = np.logical_or(furnitureMask, masksDict[item]).astype(np.uint8)
                 
                 # Try to extract decor mask from specific mask types
                 for item in ["decor", "painting", "picture", "lamp", "plant"]:
-                    if item in masks_dict:
-                        decor_mask = np.logical_or(decor_mask, masks_dict[item]).astype(np.uint8)
+                    if item in masksDict:
+                        decorMask = np.logical_or(decorMask, masksDict[item]).astype(np.uint8)
                 
                 # Encode the masks to base64
-                structure_mask_base64 = encode_mask_to_base64(structure_mask)
-                furniture_mask_base64 = encode_mask_to_base64(furniture_mask)
-                decor_mask_base64 = encode_mask_to_base64(decor_mask)
+                structureMaskBase64 = encodeMaskToBase64(structureMask)
+                furnitureMaskBase64 = encodeMaskToBase64(furnitureMask)
+                decorMaskBase64 = encodeMaskToBase64(decorMask)
                 
                 # Append the masks to the list
                 masks.append({
-                    "structure_mask": structure_mask_base64,
-                    "furniture_mask": furniture_mask_base64,
-                    "decor_mask": decor_mask_base64
+                    "structureMask": structureMaskBase64,
+                    "furnitureMask": furnitureMaskBase64,
+                    "decorMask": decorMaskBase64
                 })
                 
             except Exception as e:
                 # Record the error and continue with other images
-                error_details = traceback.format_exc()
-                print(f"Error in batch segmentation (image {idx}): {str(e)}\n{error_details}")
+                errorDetails = traceback.format_exc()
+                print(f"Error in batch segmentation (image {idx}): {str(e)}\n{errorDetails}")
                 errors[idx] = str(e)
                 masks.append(None)  # Add placeholder for failed image
         
@@ -491,14 +502,20 @@ async def batch_segment(
     except ValidationError as e:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=f"Validation error: {str(e)}"
+            detail={
+                "message": "Validation error",
+                "details": {"reason": "validation_error", "error": str(e)}
+            }
         )
     except Exception as e:
-        error_details = traceback.format_exc()
-        print(f"Error in batch segmentation: {str(e)}\n{error_details}")
+        errorDetails = traceback.format_exc()
+        logging.error(f"Error in batch segmentation: {str(e)}\n{errorDetails}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Batch segmentation error: {str(e)}"
+            detail={
+                "message": "Batch segmentation error",
+                "details": {"reason": "batch_segmentation_error", "error": str(e)}
+            }
         )
 
 
@@ -508,12 +525,12 @@ async def batch_segment(
     summary="Get available segmentation types",
     description="Retrieve the list of available segmentation types with descriptions.",
 )
-async def get_segmentation_types(
-    api_key: str = Depends(verify_api_key)
+async def getSegmentationTypes(
+    apiKey: str = Depends(verify_api_key)
 ) -> dict:
     """Get the list of available segmentation types with descriptions."""
     return {
-        "segmentation_types": [seg_type.value for seg_type in SegmentationType],
+        "segmentationTypes": [segType.value for segType in SegmentationType],
         "descriptions": {
             "structure": "Identifies structural elements such as walls, windows, doors, ceilings, and floors",
             "furniture": "Identifies furniture elements such as sofas, tables, chairs, and decorative items",

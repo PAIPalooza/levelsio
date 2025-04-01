@@ -119,6 +119,10 @@ async def evaluate_style_transfer_upload(
     """
     Evaluate the quality of a style transfer result.
     
+    GIVEN an original image and a styled image
+    WHEN the style transfer evaluation endpoint is called
+    THEN style transfer evaluation scores and feedback are returned
+    
     Args:
         original_image: Original interior image
         styled_image: Style-transferred result image
@@ -126,7 +130,10 @@ async def evaluate_style_transfer_upload(
         api_key: API key for authentication
         
     Returns:
-        Style transfer evaluation scores and feedback
+        StyleEvaluationResponse: Style transfer evaluation scores and feedback
+        
+    Raises:
+        HTTPException: If images cannot be processed or evaluation fails
     """
     try:
         # Read image content
@@ -168,7 +175,10 @@ async def evaluate_style_transfer_upload(
         print(f"Error in style evaluation: {str(e)}\n{error_details}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Style evaluation failed: {str(e)}"
+            detail={
+                "message": "Style evaluation failed",
+                "details": {"reason": "evaluation_error", "error": str(e)}
+            }
         )
 
 
@@ -192,6 +202,10 @@ async def compare_style_transfers(
     """
     Compare multiple style transfer results.
     
+    GIVEN an original image and multiple styled images
+    WHEN the style comparison endpoint is called
+    THEN comparison analysis is returned
+    
     Args:
         original_image: Original interior image
         result_images: Style-transferred result images
@@ -200,6 +214,9 @@ async def compare_style_transfers(
         
     Returns:
         Comparison analysis
+        
+    Raises:
+        HTTPException: If images cannot be processed or comparison fails
     """
     try:
         # Parse style names
@@ -209,7 +226,10 @@ async def compare_style_transfers(
         if len(styles) != len(result_images):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Number of style names must match number of result images"
+                detail={
+                    "message": "Invalid request",
+                    "details": {"reason": "style_name_mismatch", "error": "Number of style names must match number of result images"}
+                }
             )
         
         # Read original image content
@@ -265,7 +285,10 @@ async def compare_style_transfers(
         print(f"Error in style comparison: {str(e)}\n{error_details}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Style comparison failed: {str(e)}"
+            detail={
+                "message": "Style comparison failed",
+                "details": {"reason": "comparison_error", "error": str(e)}
+            }
         )
 
 
@@ -298,15 +321,19 @@ async def evaluate_style_transfer(
     """
     Evaluate style transfer quality between original and styled images.
     
-    Given base64-encoded original and styled images, this endpoint calculates
-    various quality metrics to assess the effectiveness of style transfer.
+    GIVEN base64-encoded original and styled images
+    WHEN the evaluation endpoint is called
+    THEN quality metrics and visualizations are returned
     
     Args:
         request: Evaluation request with original and styled images
         api_key: API key for authentication
         
     Returns:
-        Evaluation results with metrics and optional visualization
+        EvaluationResponse: Evaluation results with metrics and visualization
+        
+    Raises:
+        HTTPException: If images cannot be processed or evaluation fails
     """
     try:
         # Initialize evaluator
@@ -357,14 +384,20 @@ async def evaluate_style_transfer(
     except ValidationError as e:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=f"Validation error: {str(e)}"
+            detail={
+                "message": "Validation error",
+                "details": {"reason": "validation_error", "error": str(e)}
+            }
         )
     except Exception as e:
         error_details = traceback.format_exc()
         print(f"Error in evaluation: {str(e)}\n{error_details}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"An error occurred during evaluation: {str(e)}"
+            detail={
+                "message": "Evaluation failed",
+                "details": {"reason": "evaluation_error", "error": str(e)}
+            }
         )
 
 
@@ -387,15 +420,19 @@ async def evaluate_gallery(
     """
     Evaluate and compare multiple styled versions of an interior image.
     
-    This endpoint helps assess which styles work best for a particular interior
-    by comparing metrics across different style applications.
+    GIVEN an original image and multiple styled variations
+    WHEN the gallery evaluation endpoint is called
+    THEN comparative metrics and rankings are returned
     
     Args:
         request: Gallery evaluation request with original and multiple styled images
         api_key: API key for authentication
         
     Returns:
-        Comparative evaluation with metrics and rankings
+        GalleryEvaluationResponse: Comparative evaluation with metrics and rankings
+        
+    Raises:
+        HTTPException: If images cannot be processed or evaluation fails
     """
     try:
         # Initialize evaluators
@@ -498,14 +535,20 @@ async def evaluate_gallery(
     except ValidationError as e:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=f"Validation error: {str(e)}"
+            detail={
+                "message": "Validation error",
+                "details": {"reason": "validation_error", "error": str(e)}
+            }
         )
     except Exception as e:
         error_details = traceback.format_exc()
         print(f"Error in gallery evaluation: {str(e)}\n{error_details}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Gallery evaluation error: {str(e)}"
+            detail={
+                "message": "Gallery evaluation failed",
+                "details": {"reason": "evaluation_error", "error": str(e)}
+            }
         )
 
 
@@ -549,15 +592,19 @@ async def evaluate_style_transfer_json(
     """
     Evaluate the quality of a style transfer result using JSON input with base64-encoded images.
     
+    GIVEN base64-encoded original and styled images
+    WHEN the evaluation endpoint is called
+    THEN quality metrics are returned
+    
     Args:
         request: Evaluation request with JSON data
         api_key: API key for authentication
         
     Returns:
-        EvaluationResponse with quality metrics
+        EvaluationResponse: Evaluation results with quality metrics
         
     Raises:
-        HTTPException: If the request is invalid or evaluation fails
+        HTTPException: If images cannot be processed or evaluation fails
     """
     import logging
     import os

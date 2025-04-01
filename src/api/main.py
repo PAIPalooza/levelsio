@@ -1,43 +1,38 @@
 """
-Main API server for Interior Style Transfer POC.
+Main FastAPI application for Interior Style Transfer API.
 
-This module implements the FastAPI server for the Interior Style Transfer
-API, following Behavior-Driven Development principles from the
-Semantic Seed Coding Standards (SSCS) for enterprise-quality code.
+This module sets up the FastAPI application and includes all routes.
 """
 
 import os
 import logging
-from fastapi import FastAPI, Depends, HTTPException, status
+from fastapi import FastAPI, Depends, Header, HTTPException, status, Request
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
-from fastapi.openapi.docs import get_swagger_ui_html
 from fastapi.staticfiles import StaticFiles
+from fastapi.exceptions import RequestValidationError
 from dotenv import load_dotenv
 
-from src.api.core.config import settings
 from src.api.routes import api_router
-from src.api.routes import style_transfer, segmentation, evaluation
+from src.api.routes import style_transfer, segmentation, evaluation, prompts
 from src.api.core.auth import verify_api_key, verify_x_api_key
+from src.api.core.error_handlers import register_exception_handlers
 from src.api.models.prompts import (
     StyleDetails,
     StylePromptRequest,
-    StylePromptResponse,
-    CustomPromptRequest,
-    CategoryInfo,
-    StylePreview,
-    StyleListResponse
+    StylePromptResponse
 )
 
-# Load environment variables
+# Load environment variables from .env file
 load_dotenv()
 
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("api.main")
 
 
 def create_app() -> FastAPI:
@@ -47,25 +42,9 @@ def create_app() -> FastAPI:
     Returns:
         Configured FastAPI application
     """
-    # Create FastAPI app
     app = FastAPI(
-        title=settings.PROJECT_NAME,
-        description="""
-        Interior Style Transfer API provides endpoints for applying various interior design 
-        styles to room images, with options for structure preservation and style evaluation.
-        
-        ## Features
-        
-        * **Style Transfer**: Apply design styles to interior images
-        * **Segmentation**: Extract room structure for preservation
-        * **Evaluation**: Measure quality and effectiveness of style transfer
-        * **Gallery Generation**: Create collections of styled interiors
-        * **Prompt Templates**: Generate style-specific prompts for interior design
-        
-        ## Authentication
-        
-        API endpoints require authentication via API key header.
-        """,
+        title="Interior Style Transfer API",
+        description="API for transferring interior design styles to room images",
         version="1.0.0",
         docs_url="/docs",
         redoc_url="/redoc",
@@ -74,220 +53,169 @@ def create_app() -> FastAPI:
     # Configure CORS
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],
+        allow_origins=["*"],  # Allow all origins
         allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
+        allow_methods=["*"],  # Allow all methods
+        allow_headers=["*"],  # Allow all headers
     )
     
-    # Mount static files directory if exists
+    # Register exception handlers
+    @app.exception_handler(RequestValidationError)
+    async def validation_exception_handler(request: Request, exc: RequestValidationError):
+        """Handle validation errors."""
+        return JSONResponse(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            content={
+                "message": "Validation error",
+                "errors": exc.errors(),
+                "details": {"body": exc.body}
+            }
+        )
+    
+    @app.exception_handler(HTTPException)
+    async def http_exception_handler(request: Request, exc: HTTPException):
+        """Handle HTTP exceptions."""
+        # If detail is already a dict with our structure, ensure it has consistent format
+        if isinstance(exc.detail, dict):
+            content = exc.detail.copy()
+            
+            # If it already has a 'message' key, but no top-level 'errors'
+            if "message" in content and "errors" not in content:
+                # Extract errors from details if available
+                if "details" in content and "errors" in content["details"]:
+                    content["errors"] = content["details"]["errors"]
+                else:
+                    content["errors"] = []
+                    
+            # If it doesn't have a 'message' key but has 'details'
+            elif "message" not in content and "details" in content:
+                content["message"] = "Error occurred"
+                content["errors"] = []
+                
+            # Make sure both fields are present
+            if "details" not in content:
+                content["details"] = {}
+            if "errors" not in content:
+                content["errors"] = []
+                
+            return JSONResponse(
+                status_code=exc.status_code,
+                content=content
+            )
+        
+        # Otherwise format into our standard structure
+        return JSONResponse(
+            status_code=exc.status_code,
+            content={
+                "message": str(exc.detail),
+                "errors": [],
+                "details": {}
+            }
+        )
+    
+    @app.exception_handler(Exception)
+    async def general_exception_handler(request: Request, exc: Exception):
+        """Handle all other exceptions."""
+        logger.error(f"Unhandled exception: {exc}")
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={
+                "message": "Internal server error",
+                "errors": [str(exc)],
+                "details": {"type": str(type(exc).__name__)}
+            }
+        )
+    
+    # Mount static files for serving images
     try:
         app.mount("/static", StaticFiles(directory="static"), name="static")
-        logger.info("Static files directory mounted")
     except Exception as e:
         logger.warning(f"Static files directory not mounted: {e}")
+    
+    # Register error handlers
+    register_exception_handlers(app)
     
     # Include API router for all endpoints
     app.include_router(api_router)
     
-    # Also include individual routers for standard endpoints
-    app.include_router(
-        style_transfer.router,
-        prefix=f"{settings.API_V1_STR}/style",
-        tags=["style-transfer"]
-    )
-
-    app.include_router(
-        segmentation.router,
-        prefix=f"{settings.API_V1_STR}/segmentation",
-        tags=["segmentation"]
-    )
-
-    app.include_router(
-        evaluation.router,
-        prefix=f"{settings.API_V1_STR}/evaluation",
-        tags=["evaluation"]
-    )
-    
-    # Root endpoint for API status
-    @app.get("/", tags=["status"])
-    def read_root():
-        """API root endpoint returns basic service information."""
+    # Define root endpoint
+    @app.get("/")
+    async def root():
+        """Root endpoint that returns API information."""
         return {
-            "service": settings.PROJECT_NAME,
+            "name": "Interior Style Transfer API",
             "version": "1.0.0",
-            "status": "operational",
-            "documentation": "/docs",
-            "redoc": "/redoc"
+            "docs_url": "/docs",
+            "endpoints": {
+                "style_transfer": "/api/v1/style/transfer",
+                "segmentation": "/api/v1/segmentation/segment",
+                "evaluation": "/api/v1/evaluation/style-score",
+                "prompts": "/api/v1/prompts/list",
+            },
         }
+    
+    # Health check endpoint
+    @app.get("/health")
+    async def health_check():
+        """Health check endpoint for monitoring."""
+        return {"status": "healthy", "service": "interior-style-api"}
+    
+    # API Key verification endpoint
+    @app.get("/verify-key")
+    async def verify_key(api_key: str = Depends(verify_api_key)):
+        """Verify that an API key is valid."""
+        return {"valid": True, "message": "API key is valid"}
+    
+    # Include all route modules
+    app.include_router(style_transfer.router, prefix="/api/v1/style")
+    app.include_router(segmentation.router, prefix="/api/v1/segmentation")
+    app.include_router(evaluation.router, prefix="/api/v1/evaluation")
+    app.include_router(prompts.router, prefix="/api/v1/prompts")
+    
+    # Add simple root-level routes for convenience
+    app.include_router(style_transfer.router, prefix="/style")
+    app.include_router(segmentation.router, prefix="/segmentation")
+    app.include_router(evaluation.router, prefix="/evaluation")
+    app.include_router(prompts.router, prefix="/prompts")
+    
+    # Customize OpenAPI schema
+    def custom_openapi():
+        """Customize OpenAPI schema with security information."""
+        if app.openapi_schema:
+            return app.openapi_schema
+        
+        openapi_schema = get_openapi(
+            title=app.title,
+            version=app.version,
+            description=app.description,
+            routes=app.routes,
+        )
+        
+        # Add API key security scheme
+        openapi_schema["components"]["securitySchemes"] = {
+            "ApiKeyHeader": {
+                "type": "apiKey",
+                "in": "header",
+                "name": "X-API-Key",
+                "description": "API key for authentication",
+            }
+        }
+        
+        # Apply security to all operations
+        for path in openapi_schema["paths"]:
+            for method in openapi_schema["paths"][path]:
+                if method != "options":  # Skip options for CORS
+                    openapi_schema["paths"][path][method]["security"] = [
+                        {"ApiKeyHeader": []}
+                    ]
+        
+        app.openapi_schema = openapi_schema
+        return app.openapi_schema
+    
+    app.openapi = custom_openapi
     
     return app
 
 
-# Create app instance
+# Create the application instance
 app = create_app()
-
-
-# Custom OpenAPI schema with enhanced documentation
-def custom_openapi():
-    """Generate a custom OpenAPI schema with enhanced metadata."""
-    if app.openapi_schema:
-        return app.openapi_schema
-    
-    openapi_schema = get_openapi(
-        title="Interior Style Transfer API",
-        version="1.0.0",
-        description=app.description,
-        routes=app.routes,
-    )
-    
-    # Add components section if it doesn't exist
-    if "components" not in openapi_schema:
-        openapi_schema["components"] = {}
-    
-    # Add schemas section if it doesn't exist
-    if "schemas" not in openapi_schema["components"]:
-        openapi_schema["components"]["schemas"] = {}
-    
-    # Add API key security scheme
-    openapi_schema["components"]["securitySchemes"] = {
-        "APIKeyHeader": {
-            "type": "apiKey",
-            "in": "header",
-            "name": "X-API-Key",
-            "description": "API key for authentication. Request from administrator."
-        },
-        "ApiKey": {
-            "type": "apiKey",
-            "in": "header",
-            "name": "api-key",
-            "description": "API key for authentication."
-        },
-        "ApiKeyQuery": {
-            "type": "apiKey",
-            "in": "query",
-            "name": "api_key",
-            "description": "API key for authentication as a query parameter."
-        }
-    }
-    
-    # Apply security globally to all endpoints
-    openapi_schema["security"] = [
-        {"APIKeyHeader": []}, 
-        {"ApiKey": []},
-        {"ApiKeyQuery": []}
-    ]
-    
-    # Manually add models that are defined but might not be detected
-    model_schemas = {
-        "StyleDetails": {
-            "title": "StyleDetails",
-            "type": "object",
-            "properties": {
-                "name": {"title": "Name", "type": "string"},
-                "description": {"title": "Description", "type": "string"},
-                "category": {"title": "Category", "type": "string"}
-            },
-            "required": ["name", "description", "category"]
-        },
-        "StylePromptRequest": {
-            "title": "StylePromptRequest",
-            "type": "object",
-            "properties": {
-                "style": {"title": "Style", "type": "string"},
-                "room_type": {"title": "Room Type", "type": "string", "default": "interior"},
-                "details": {"title": "Details", "type": "string", "nullable": True}
-            },
-            "required": ["style"]
-        },
-        "StylePromptResponse": {
-            "title": "StylePromptResponse",
-            "type": "object",
-            "properties": {
-                "prompt": {"title": "Prompt", "type": "string"},
-                "style": {"title": "Style", "type": "string"}
-            },
-            "required": ["prompt", "style"]
-        },
-        "CustomPromptRequest": {
-            "title": "CustomPromptRequest",
-            "type": "object",
-            "properties": {
-                "prompt_template": {"title": "Prompt Template", "type": "string"},
-                "style": {"title": "Style", "type": "string"},
-                "room_type": {"title": "Room Type", "type": "string", "default": "interior"},
-                "details": {"title": "Details", "type": "string", "nullable": True}
-            },
-            "required": ["prompt_template", "style"]
-        },
-        "CategoryInfo": {
-            "title": "CategoryInfo",
-            "type": "object",
-            "properties": {
-                "name": {"title": "Name", "type": "string"},
-                "description": {"title": "Description", "type": "string"}
-            },
-            "required": ["name", "description"]
-        },
-        "StylePreview": {
-            "title": "StylePreview",
-            "type": "object",
-            "properties": {
-                "name": {"title": "Name", "type": "string"},
-                "category": {"title": "Category", "type": "string"},
-                "preview": {"title": "Preview", "type": "string", "nullable": True}
-            },
-            "required": ["name", "category"]
-        },
-        "StyleListResponse": {
-            "title": "StyleListResponse",
-            "type": "object",
-            "properties": {
-                "styles": {
-                    "title": "Styles",
-                    "type": "array",
-                    "items": {"$ref": "#/components/schemas/StylePreview"}
-                },
-                "categories": {
-                    "title": "Categories",
-                    "type": "array",
-                    "items": {"$ref": "#/components/schemas/CategoryInfo"}
-                }
-            },
-            "required": ["styles", "categories"]
-        }
-    }
-    
-    # Add the schemas to the OpenAPI components
-    for schema_name, schema in model_schemas.items():
-        openapi_schema["components"]["schemas"][schema_name] = schema
-    
-    # Add examples, servers, etc.
-    openapi_schema["info"]["x-logo"] = {
-        "url": "https://fastapi.tiangolo.com/img/logo-margin/logo-teal.png"
-    }
-    
-    app.openapi_schema = openapi_schema
-    return app.openapi_schema
-
-
-# Set custom OpenAPI schema
-app.openapi = custom_openapi
-
-
-# Use API environment variables if provided, otherwise use defaults
-API_HOST = os.getenv("API_HOST", "0.0.0.0")
-API_PORT = int(os.getenv("API_PORT", "8080"))
-
-
-if __name__ == "__main__":
-    """Run the API server directly if this module is executed."""
-    import uvicorn
-    
-    logger.info(f"Starting API server at {API_HOST}:{API_PORT}")
-    uvicorn.run(
-        "src.api.main:app",
-        host=API_HOST,
-        port=API_PORT,
-        reload=True
-    )

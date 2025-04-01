@@ -570,3 +570,130 @@ class StylePromptManager:
         except Exception as e:
             logger.error(f"Error deleting style template: {str(e)}")
             return False
+
+class StyleManager:
+    """
+    A simplified interface to the StylePromptManager for API integration tests.
+    
+    This class provides access to style templates, categories, and prompt generation,
+    with methods specifically designed for the API integration test suite.
+    """
+    
+    def __init__(self):
+        """Initialize the style manager with default templates."""
+        self.manager = StylePromptManager()
+    
+    def get_all_style_names(self) -> List[str]:
+        """
+        Get a list of all available style names.
+        
+        Returns:
+            List of style names
+        """
+        return list(self.manager.templates.keys())
+    
+    def get_style_categories(self) -> List[str]:
+        """
+        Get a list of all style categories.
+        
+        Returns:
+            List of category names
+        """
+        return [cat.value for cat in StyleCategory]
+    
+    def get_styles_by_category(self, category: str) -> List[Dict[str, Any]]:
+        """
+        Get all styles belonging to a specific category.
+        
+        Args:
+            category: Category name
+            
+        Returns:
+            List of style details dictionaries
+        """
+        styles = []
+        for style_name, style_data in self.manager.templates.items():
+            if style_data.get("category", "").lower() == category.lower():
+                styles.append({
+                    "name": style_name,
+                    "description": style_data.get("description", ""),
+                    "characteristics": style_data.get("characteristics", [])
+                })
+        return styles
+    
+    def style_exists(self, style_name: str) -> bool:
+        """
+        Check if a style exists in the available styles.
+        
+        Args:
+            style_name: Name of the style to check
+            
+        Returns:
+            True if the style exists, False otherwise
+        """
+        return style_name.lower() in [s.lower() for s in self.get_all_style_names()]
+    
+    def get_style_prompt(self, style_name: str, room_type: str = "living room") -> str:
+        """
+        Get a formatted prompt for a specific style and room type.
+        
+        Args:
+            style_name: Name of the style
+            room_type: Type of room (e.g., "living room", "bedroom")
+            
+        Returns:
+            Formatted prompt string
+            
+        Raises:
+            ValueError: If the style does not exist
+        """
+        if not self.style_exists(style_name):
+            raise ValueError(f"Style '{style_name}' does not exist")
+        
+        return self.manager.get_prompt_for_style(style_name, room_type)
+    
+    def generate_custom_prompt(
+        self,
+        base_style: str,
+        colors: List[str] = None,
+        materials: List[str] = None,
+        room_type: str = "living room",
+        mood: str = None
+    ) -> str:
+        """
+        Generate a custom prompt based on specified elements.
+        
+        Args:
+            base_style: Base style to use
+            colors: List of colors to include
+            materials: List of materials to include
+            room_type: Type of room
+            mood: Mood/atmosphere to convey
+            
+        Returns:
+            Custom prompt combining all elements
+            
+        Raises:
+            ValueError: If the base style does not exist
+        """
+        if not self.style_exists(base_style):
+            raise ValueError(f"Base style '{base_style}' does not exist")
+        
+        # Get base prompt
+        prompt = self.get_style_prompt(base_style, room_type)
+        
+        # Add colors if provided
+        if colors and len(colors) > 0:
+            color_str = ", ".join(colors)
+            prompt += f", with {color_str} color scheme"
+        
+        # Add materials if provided
+        if materials and len(materials) > 0:
+            material_str = ", ".join(materials)
+            prompt += f", featuring {material_str} materials"
+        
+        # Add mood if provided
+        if mood:
+            prompt += f", creating a {mood} atmosphere"
+        
+        return prompt

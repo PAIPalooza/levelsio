@@ -20,7 +20,8 @@ from src.api.models.segmentation import (
     SegmentationResponse,
     BatchSegmentationRequest,
     BatchSegmentationResponse,
-    SegmentationType
+    SegmentationType,
+    SegmentationJsonRequest
 )
 from src.api.core.config import settings
 from src.api.core.auth import verify_api_key
@@ -319,6 +320,82 @@ async def segment_interior_api(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"An error occurred during segmentation: {str(e)}"
+        )
+
+
+@router.post(
+    "/segment-json",
+    response_model=SegmentationResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Segment room using JSON input",
+    description="Segment an interior room image using JSON input with base64-encoded image."
+)
+async def segment_interior_json(
+    request: SegmentationJsonRequest,
+    api_key: str = Depends(verify_api_key)
+) -> SegmentationResponse:
+    """
+    Segment an interior room image using JSON input with base64-encoded image.
+    
+    Args:
+        request: Segmentation request with JSON data
+        api_key: API key for authentication
+        
+    Returns:
+        SegmentationResponse with segmentation results
+        
+    Raises:
+        HTTPException: If the request is invalid or segmentation fails
+    """
+    import logging
+    import os
+    
+    # Validate base64 image data
+    try:
+        if not request.image.startswith('data:image/'):
+            # Try to add prefix if not present
+            request.image = f"data:image/jpeg;base64,{request.image}"
+    except Exception as e:
+        logging.error(f"Error processing base64 image: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "message": "Invalid image data",
+                "details": {"reason": "image_validation_error"}
+            }
+        )
+    
+    # Process detail level
+    detail_level = request.detail_level
+    
+    try:
+        # Create a FluxAPI instance
+        from src.flux_integration import FluxAPI
+        flux_api = FluxAPI()
+        
+        # Make the async API call properly
+        result = await flux_api.segment_interior(
+            image_base64=request.image,
+            detail_level=detail_level
+        )
+        
+        # Return the response
+        return SegmentationResponse(
+            regions=result.get("regions", []),
+            detail_level=detail_level,
+            image_width=result.get("image_width", 1024),
+            image_height=result.get("image_height", 768),
+            processing_time=result.get("processing_time", 1.0)
+        )
+        
+    except Exception as e:
+        logging.error(f"Error during segmentation: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={
+                "message": f"Segmentation failed: {str(e)}",
+                "details": {"api_name": "Flux API"}
+            }
         )
 
 

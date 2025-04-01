@@ -62,9 +62,16 @@ class SegmentationHandler:
         """
         Initialize the segmentation handler with SAM model.
         
+        GIVEN a model type and optional checkpoint path
+        WHEN the handler is initialized
+        THEN the model is set up for segmentation
+        
         Args:
             model_type: SAM model type ('vit_h', 'vit_l', 'vit_b')
-            checkpoint_path: Path to model weights (or None to download)
+            checkpoint_path: Optional path to model weights file
+            
+        Returns:
+            None
         """
         self.model_type = model_type
         self.checkpoint_path = checkpoint_path
@@ -95,11 +102,15 @@ class SegmentationHandler:
         """
         Compute MD5 hash of a file to verify integrity.
         
+        GIVEN a file path
+        WHEN the MD5 hash is computed
+        THEN the hash is returned as a hexadecimal string
+        
         Args:
             file_path: Path to the file
             
         Returns:
-            MD5 hash as hexadecimal string
+            str: MD5 hash as hexadecimal string
         """
         md5_hash = hashlib.md5()
         with open(file_path, "rb") as f:
@@ -112,12 +123,16 @@ class SegmentationHandler:
         """
         Verify the integrity of a downloaded checkpoint.
         
+        GIVEN a file path and expected MD5 hash
+        WHEN the file is verified
+        THEN the result is returned
+        
         Args:
             file_path: Path to the checkpoint file
             expected_md5: Expected MD5 hash
             
         Returns:
-            Whether the file matches the expected MD5
+            bool: Whether the file matches the expected MD5
         """
         if not os.path.exists(file_path):
             return False
@@ -142,8 +157,12 @@ class SegmentationHandler:
         """
         Download the SAM model checkpoint if not already present.
         
+        GIVEN the model type
+        WHEN the checkpoint is downloaded
+        THEN the path to the downloaded checkpoint is returned
+        
         Returns:
-            Path to the downloaded checkpoint
+            str: Path to the downloaded checkpoint
         """
         if not SAM_AVAILABLE:
             logger.warning("SAM not installed. Cannot download checkpoint.")
@@ -213,12 +232,19 @@ class SegmentationHandler:
                 os.remove(local_path + ".tmp")
             return ""
     
-    def load_model(self) -> bool:
+    def load_model(self, checkpoint_path: Optional[str] = None) -> bool:
         """
-        Load the SAM model with the specified checkpoint.
+        Load the SAM model for image segmentation.
         
+        GIVEN a checkpoint path or default configuration
+        WHEN the model loading is attempted
+        THEN the SAM model is loaded or a fallback mechanism is used
+        
+        Args:
+            checkpoint_path: Optional path to model weights file
+            
         Returns:
-            bool: True if model loaded successfully
+            bool: True if model loaded successfully, False otherwise
         """
         if not SAM_AVAILABLE:
             logger.warning("SAM not installed. Using placeholder functionality.")
@@ -262,11 +288,16 @@ class SegmentationHandler:
         """
         Generate segmentation masks for an interior image.
         
+        GIVEN an interior image
+        WHEN segmentation is performed
+        THEN a dictionary of labeled masks is returned
+        
         Args:
-            image: Input image as NumPy array
+            image: RGB image as numpy array with shape (H, W, 3)
             
         Returns:
-            Dict mapping mask types to binary masks
+            Dict[str, np.ndarray]: Dictionary of segmentation masks with keys like
+                                  'wall', 'floor', 'ceiling', etc.
         """
         h, w = image.shape[:2]
         
@@ -379,23 +410,21 @@ class SegmentationHandler:
             "structure": placeholder_structure
         }
     
-    def apply_mask(self, image: np.ndarray, mask: np.ndarray, 
-                  invert: bool = False) -> np.ndarray:
+    def apply_mask(self, image: np.ndarray, mask: np.ndarray) -> np.ndarray:
         """
-        Apply a binary mask to an image.
+        Apply a mask to an image using alpha blending.
+        
+        GIVEN an image and a mask
+        WHEN the mask is applied
+        THEN a modified image is returned with the mask area affected
         
         Args:
-            image: Input image as NumPy array
-            mask: Binary mask as NumPy array
-            invert: Whether to invert the mask
+            image: RGB image as numpy array with shape (H, W, 3)
+            mask: Binary mask array with shape (H, W) or (H, W, 1) or (H, W, 3)
             
         Returns:
-            Masked image as NumPy array
+            np.ndarray: Modified image with mask applied
         """
-        if invert:
-            mask = 1 - mask
-            
-        # Convert mask to 3-channel if needed
         if len(mask.shape) == 2:
             mask = np.repeat(mask[:, :, np.newaxis], 3, axis=2)
         
@@ -405,12 +434,17 @@ class SegmentationHandler:
         """
         Create a visualization of the generated masks.
         
+        GIVEN an image and a dictionary of masks
+        WHEN the visualization is created
+        THEN a visualization image is returned
+        
         Args:
-            image: Original image as NumPy array
-            masks: Dictionary of masks from generate_masks
+            image: RGB image as numpy array with shape (H, W, 3)
+            masks: Dictionary of segmentation masks with keys like
+                   'wall', 'floor', 'ceiling', etc.
             
         Returns:
-            Visualization image as NumPy array
+            np.ndarray: Visualization image
         """
         h, w = image.shape[:2]
         
@@ -499,17 +533,17 @@ class SegmentationHandler:
         """
         Apply structure preservation to maintain architectural elements.
         
-        Takes structural elements from the original image and non-structural
-        elements from the stylized image, to preserve room architecture
-        while applying style transfer.
+        GIVEN an original image, stylized image, and structure mask
+        WHEN the structure preservation is applied
+        THEN a combined image is returned with preserved structure
         
         Args:
-            original_image: Input image containing structure to preserve
-            stylized_image: Stylized image to apply in non-structure areas
-            structure_mask: Binary mask where 1=structure, 0=non-structure
+            original_image: RGB image as numpy array with shape (H, W, 3)
+            stylized_image: RGB image as numpy array with shape (H, W, 3)
+            structure_mask: Binary mask array with shape (H, W) or (H, W, 1) or (H, W, 3)
             
         Returns:
-            Combined image with preserved structure
+            np.ndarray: Combined image with preserved structure
         """
         # Validate inputs
         if original_image.shape != stylized_image.shape:
@@ -549,16 +583,17 @@ class SegmentationHandler:
         """
         Apply structure preservation across multiple style variations.
         
-        Preserves architectural elements from the original image across
-        multiple style variations, useful for presenting options to user.
+        GIVEN an original image, list of style variations, and structure mask
+        WHEN the structure preservation is applied
+        THEN a list of combined images is returned with preserved structure
         
         Args:
-            original_image: Input image containing structure to preserve
-            style_variations: List of stylized images to apply structure preservation to
-            structure_mask: Binary mask where 1=structure, 0=non-structure
+            original_image: RGB image as numpy array with shape (H, W, 3)
+            style_variations: List of RGB images as numpy arrays with shape (H, W, 3)
+            structure_mask: Binary mask array with shape (H, W) or (H, W, 1) or (H, W, 3)
             
         Returns:
-            List of images with preserved structure
+            List[np.ndarray]: List of combined images with preserved structure
         """
         if not style_variations:
             return []
@@ -586,16 +621,17 @@ class SegmentationHandler:
         """
         Calculate a score indicating structure preservation quality.
         
-        Measures how well structural elements (walls, floors, etc.) from
-        the original image are preserved in the stylized output.
+        GIVEN an original image, stylized image, and structure mask
+        WHEN the score is calculated
+        THEN a score between 0-1 is returned
         
         Args:
-            original_image: Original image containing structure
-            stylized_image: Stylized image to evaluate
-            structure_mask: Binary mask where 1=structure, 0=non-structure
+            original_image: RGB image as numpy array with shape (H, W, 3)
+            stylized_image: RGB image as numpy array with shape (H, W, 3)
+            structure_mask: Binary mask array with shape (H, W) or (H, W, 1) or (H, W, 3)
             
         Returns:
-            Score between 0-1, where 1 means perfect preservation
+            float: Score between 0-1, where 1 means perfect preservation
         """
         # Validate inputs
         if original_image.shape != stylized_image.shape:

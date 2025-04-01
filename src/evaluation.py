@@ -47,13 +47,20 @@ class VisualEvaluationService:
         """
         Calculate Structural Similarity Index between two images.
         
+        GIVEN two images to compare
+        WHEN the SSIM calculation is performed
+        THEN a similarity score between 0 and 1 is returned (higher is better)
+        
         Args:
             image1: First image as NumPy array (RGB)
             image2: Second image as NumPy array (RGB)
             mask: Optional mask to focus comparison on specific areas
             
         Returns:
-            SSIM score (higher is better, max 1.0)
+            float: SSIM score (higher is better, max 1.0)
+            
+        Raises:
+            ValueError: If images have different dimensions
         """
         # Ensure images are the same size
         if image1.shape != image2.shape:
@@ -109,13 +116,20 @@ class VisualEvaluationService:
         """
         Calculate Mean Squared Error between two images.
         
+        GIVEN two images to compare
+        WHEN the MSE calculation is performed
+        THEN an error value is returned (lower is better)
+        
         Args:
-            image1: First image as NumPy array
-            image2: Second image as NumPy array
+            image1: First image as NumPy array (RGB)
+            image2: Second image as NumPy array (RGB)
             mask: Optional mask to focus comparison on specific areas
             
         Returns:
-            MSE value (lower is better, min 0.0)
+            float: MSE value (lower is better, min 0.0)
+            
+        Raises:
+            ValueError: If images have different dimensions
         """
         # Ensure images are the same size
         if image1.shape != image2.shape:
@@ -352,12 +366,19 @@ class ImageEvaluator:
     """
     Evaluates the quality and structural preservation of generated interior images.
     
-    Provides methods for calculating similarity metrics between input and output images
-    to ensure architectural elements are preserved during style transfer.
+    This class provides methods for calculating similarity metrics between input 
+    and output images to ensure architectural elements are preserved during 
+    style transfer, following SSCS principles for evaluation.
     """
     
     def __init__(self):
-        """Initialize the image evaluator."""
+        """
+        Initialize the image evaluator.
+        
+        GIVEN a need to evaluate image transformations
+        WHEN an ImageEvaluator is created
+        THEN it is initialized with the necessary evaluation services
+        """
         self.evaluation_service = VisualEvaluationService()
         logger.info("ImageEvaluator initialized")
     
@@ -366,13 +387,20 @@ class ImageEvaluator:
         """
         Calculate Structural Similarity Index between two images.
         
+        GIVEN two images to compare
+        WHEN the SSIM calculation is performed
+        THEN a similarity score between 0 and 1 is returned (higher is better)
+        
         Args:
-            image1: First image as NumPy array
-            image2: Second image as NumPy array
+            image1: First image as NumPy array (RGB)
+            image2: Second image as NumPy array (RGB)
             mask: Optional mask to focus comparison on specific areas
             
         Returns:
-            SSIM score (higher is better, max 1.0)
+            float: SSIM score (higher is better, max 1.0)
+            
+        Raises:
+            ValueError: If images have different dimensions
         """
         return self.evaluation_service.calculate_ssim(image1, image2, mask)
     
@@ -381,13 +409,20 @@ class ImageEvaluator:
         """
         Calculate Mean Squared Error between two images.
         
+        GIVEN two images to compare
+        WHEN the MSE calculation is performed
+        THEN an error value is returned (lower is better)
+        
         Args:
-            image1: First image as NumPy array
-            image2: Second image as NumPy array
+            image1: First image as NumPy array (RGB)
+            image2: Second image as NumPy array (RGB)
             mask: Optional mask to focus comparison on specific areas
             
         Returns:
-            MSE value (lower is better, min 0.0)
+            float: MSE value (lower is better, min 0.0)
+            
+        Raises:
+            ValueError: If images have different dimensions
         """
         return self.evaluation_service.calculate_mse(image1, image2, mask)
     

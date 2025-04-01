@@ -20,7 +20,8 @@ from src.api.models.evaluation import (
     EvaluationResponse,
     GalleryEvaluationRequest,
     GalleryEvaluationResponse,
-    MetricType
+    MetricType,
+    EvaluationJsonRequest
 )
 from src.api.core.config import settings
 from src.api.core.auth import verify_api_key
@@ -532,3 +533,84 @@ async def get_available_metrics(
             "overall_quality": ["psnr", "ssim"]
         }
     }
+
+
+@router.post(
+    "/style-score-json",
+    response_model=EvaluationResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Evaluate style transfer using JSON input",
+    description="Evaluate the quality of a style transfer result using JSON input with base64-encoded images."
+)
+async def evaluate_style_transfer_json(
+    request: EvaluationJsonRequest,
+    api_key: str = Depends(verify_api_key)
+) -> EvaluationResponse:
+    """
+    Evaluate the quality of a style transfer result using JSON input with base64-encoded images.
+    
+    Args:
+        request: Evaluation request with JSON data
+        api_key: API key for authentication
+        
+    Returns:
+        EvaluationResponse with quality metrics
+        
+    Raises:
+        HTTPException: If the request is invalid or evaluation fails
+    """
+    import logging
+    import os
+    
+    # Validate base64 image data
+    try:
+        if not request.original_image.startswith('data:image/'):
+            # Try to add prefix if not present
+            request.original_image = f"data:image/jpeg;base64,{request.original_image}"
+            
+        if not request.styled_image.startswith('data:image/'):
+            # Try to add prefix if not present  
+            request.styled_image = f"data:image/jpeg;base64,{request.styled_image}"
+    except Exception as e:
+        logging.error(f"Error processing base64 images: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "message": "Invalid image data",
+                "details": {"reason": "image_validation_error"}
+            }
+        )
+    
+    # Get metrics to calculate
+    metrics = request.metrics or ["ssim", "mse", "psnr"]
+    
+    try:
+        # Create a FluxAPI instance 
+        from src.flux_integration import FluxAPI
+        flux_api = FluxAPI()
+        
+        # Make the async API call properly
+        result = await flux_api.evaluate_style_transfer(
+            original_image=request.original_image,
+            styled_image=request.styled_image,
+            metrics=metrics,
+            style_names=request.style_names
+        )
+        
+        # Return the response
+        return EvaluationResponse(
+            metrics=result.get("metrics", []),
+            overall_score=result.get("overall_score", 75.0),
+            style_name=result.get("style_name"),
+            processing_time=result.get("processing_time", 0.5)
+        )
+        
+    except Exception as e:
+        logging.error(f"Error during evaluation: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "message": f"Evaluation failed: {str(e)}",
+                "details": {"api_name": "Flux API"}
+            }
+        )

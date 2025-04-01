@@ -9,6 +9,7 @@ from the Semantic Seed Coding Standards (SSCS).
 import base64
 import io
 import traceback
+import os
 from typing import List, Optional, Dict, Any
 import numpy as np
 from PIL import Image
@@ -20,10 +21,17 @@ from src.api.models.style_transfer import (
     StyleTransferResponse,
     BatchStyleRequest,
     BatchStyleResponse,
-    StyleType
+    StyleType,
+    StyleTransferJsonRequest
 )
 from src.api.core.config import settings
 from src.api.core.auth import verify_api_key
+from src.api.core.errors import (
+    StyleAPIException,
+    StyleNotFoundException,
+    InvalidImageException,
+    ExternalAPIException,
+)
 from src.style_transfer import StyleTransferService
 from src.flux_integration import FluxClient
 from src.segmentation import SegmentationHandler
@@ -57,7 +65,7 @@ def decode_base64_image(base64_string: str) -> np.ndarray:
         return np.array(image)
     except Exception as e:
         print(f"Error decoding base64 image: {str(e)}")
-        raise
+        raise InvalidImageException(f"Failed to process image: {str(e)}")
 
 
 def encode_image_to_base64(image: np.ndarray) -> str:
@@ -172,6 +180,11 @@ async def transfer_style(
             "processing_time_ms": result["processing_time_ms"]
         }
         
+    except StyleAPIException as e:
+        raise HTTPException(
+            status_code=e.status_code,
+            detail=e.message
+        )
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -268,6 +281,11 @@ async def apply_style(
             structure_preserved=request.preserve_structure
         )
         
+    except StyleAPIException as e:
+        raise HTTPException(
+            status_code=e.status_code,
+            detail=e.message
+        )
     except ValidationError as e:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -386,6 +404,11 @@ async def batch_style(
             errors=errors if errors else None
         )
         
+    except StyleAPIException as e:
+        raise HTTPException(
+            status_code=e.status_code,
+            detail=e.message
+        )
     except ValidationError as e:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -397,6 +420,138 @@ async def batch_style(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"An error occurred during batch style transfer: {str(e)}"
+        )
+
+
+@router.post(
+    "/transfer-json",
+    response_model=StyleTransferResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Transfer style using JSON input",
+    description="Apply interior design style to an image using JSON input with base64-encoded image."
+)
+async def transfer_style_json(
+    request: StyleTransferJsonRequest,
+    api_key: str = Depends(verify_api_key)
+) -> StyleTransferResponse:
+    """
+    Transfer interior design style using JSON input with base64-encoded image.
+    
+    Args:
+        request: Style transfer request with JSON data
+        api_key: API key for authentication
+        
+    Returns:
+        StyleTransferResponse with styled image
+        
+    Raises:
+        HTTPException: If the request is invalid or transfer fails
+    """
+    import logging
+    import base64
+    
+    # Get available styles
+    available_styles = ["minimalist", "modern", "industrial", "scandinavian", 
+                      "bohemian", "traditional", "farmhouse", "coastal"]
+    
+    # Validate base64 image data
+    try:
+        # Strip prefix if present
+        image_data = request.image
+        if image_data.startswith('data:image/'):
+            # Extract base64 content after the comma
+            image_data = image_data.split(',', 1)[1]
+        
+        # Try to decode to validate
+        try:
+            decoded_data = base64.b64decode(image_data)
+            if len(decoded_data) < 10:  # Too small to be a valid image
+                raise ValueError("Decoded data too small to be a valid image")
+        except Exception as e:
+            logging.error(f"Invalid base64 data: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={
+                    "message": "Invalid image data",
+                    "details": {"reason": "image_validation_error"}
+                }
+            )
+            
+        # Re-add prefix for processing
+        if not request.image.startswith('data:image/'):
+            request.image = f"data:image/jpeg;base64,{image_data}"
+            
+    except Exception as e:
+        logging.error(f"Error processing base64 image: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "message": "Invalid image data",
+                "details": {"reason": "image_validation_error"}
+            }
+        )
+    
+    # Validate style
+    if request.style not in available_styles:
+        logging.error(f"Style '{request.style}' not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={
+                "message": f"Style '{request.style}' not found",
+                "details": {"available_styles": available_styles}
+            }
+        )
+    
+    # Generate prompt if needed
+    prompt = request.prompt
+    if not prompt:
+        prompt = f"A {request.style} style interior design with elegant furniture and decorations"
+    
+    # Process structure mask if provided
+    structure_mask = request.structure_mask
+    if structure_mask and not structure_mask.startswith('data:image/'):
+        try:
+            structure_mask = f"data:image/png;base64,{structure_mask}"
+        except Exception as e:
+            logging.error(f"Error processing structure mask: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={
+                    "message": "Invalid structure mask data",
+                    "details": {"reason": "mask_validation_error"}
+                }
+            )
+    
+    try:
+        # Create a FluxAPI instance
+        from src.flux_integration import FluxAPI
+        flux_api = FluxAPI()
+        
+        # Make the async API call properly
+        result = await flux_api.apply_style(
+            image_base64=request.image,
+            prompt=prompt,
+            structure_mask=structure_mask,
+            strength=request.strength,
+            seed=request.seed
+        )
+        
+        # Return the response
+        return StyleTransferResponse(
+            styled_image=result.get("styled_image", request.image),
+            style=request.style,
+            prompt=prompt,
+            processing_time=result.get("processing_time", 1.0)
+        )
+        
+    except Exception as e:
+        logging.error(f"Error during style transfer: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={
+                "message": f"Style transfer failed: {str(e)}",
+                "details": {"api_name": "Flux API"}
+            }
         )
 
 
@@ -424,6 +579,11 @@ async def get_available_styles(
                 "coastal": "Light blues, whites, and nautical elements"
             }
         }
+    except StyleAPIException as e:
+        raise HTTPException(
+            status_code=e.status_code,
+            detail=e.message
+        )
     except Exception as e:
         error_details = traceback.format_exc()
         print(f"Error in getting available styles: {str(e)}\n{error_details}")

@@ -1,124 +1,99 @@
 """
-Authentication utilities for Interior Style Transfer API.
+Authentication and authorization utilities for the API.
 
-This module implements API key authentication and validation following
-the Semantic Seed Coding Standards (SSCS) for secure, testable code.
-It provides multiple authentication mechanisms for the API endpoints.
+This module implements authentication mechanisms for the Interior Style
+Transfer API, including API key validation and header verification following SSCS.
 """
 
 import os
 import logging
-from typing import Optional, List, Dict, Any
-from fastapi import Depends, HTTPException, status, Security, Header
-from fastapi.security.api_key import APIKeyHeader, APIKeyQuery
-from dotenv import load_dotenv
-from src.api.core.config import settings
-
-# Load environment variables
-load_dotenv()
+from typing import Optional
+from fastapi import Header, HTTPException, Depends, status, Request
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("api.auth")
 
-# API key names and security schemes
-API_KEY_NAME = "api-key"
-API_KEY_QUERY = "api_key"
-API_KEY_HEADER_NAME = "X-API-Key"
+# Read API key from environment variables
+API_KEY = os.getenv("INTERIOR_STYLE_API_KEY")
+FAL_KEY = os.getenv("FAL_KEY", "f51c8849-420f-4f98-ac43-9b98e5a58408:072cb70f9f6d9fc4f56f3930187d87cd")
 
-# Get API key from environment
-API_KEY = os.getenv("INTERIOR_STYLE_API_KEY", "development-key")
+# Set dummy key for testing if not provided
+if not API_KEY:
+    logger.warning("INTERIOR_STYLE_API_KEY environment variable not set, using test key")
+    API_KEY = "test-api-key-123"
 
-# Security schemes
-simple_api_key_header = APIKeyHeader(name=API_KEY_NAME, auto_error=False)
-simple_api_key_query = APIKeyQuery(name=API_KEY_QUERY, auto_error=False)
-x_api_key_header = APIKeyHeader(name=API_KEY_HEADER_NAME, auto_error=True)
-
-# In a production environment, this would validate against a secure database
-# For the POC, we'll use a simple in-memory set of valid API keys
-VALID_API_KEYS = {
-    "api_key_for_testing": {
-        "owner": "demo_user",
-        "scopes": ["style", "segmentation", "evaluation", "prompts"]
-    }
-}
+# The FAL key should also be valid for testing
+VALID_KEYS = [API_KEY, FAL_KEY]
 
 
-async def verify_api_key(
-    api_key_header: str = Security(simple_api_key_header),
-    api_key_query: str = Security(simple_api_key_query)
-) -> str:
+def verify_api_key(api_key: Optional[str] = Header(None, alias="X-API-Key")) -> str:
     """
-    Verify the API key provided in header or query parameter.
+    Verify that a valid API key is provided in the request header.
     
     Args:
-        api_key_header: API key from header
-        api_key_query: API key from query parameter
+        api_key: API key from request header
         
     Returns:
-        Validated API key
+        The validated API key
         
     Raises:
-        HTTPException: If API key is invalid
+        HTTPException: If API key is missing or invalid
     """
-    # Check if valid API key in header
-    if api_key_header == API_KEY:
-        return api_key_header
-        
-    # Check if valid API key in query
-    if api_key_query == API_KEY:
-        return api_key_query
-        
-    # Log unauthorized access attempt
-    logger.warning(f"Unauthorized API access attempt with invalid key")
-    
-    # Raise exception for invalid API key
-    raise HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Invalid API Key",
-        headers={"WWW-Authenticate": "ApiKey"}
-    )
-
-
-async def verify_x_api_key(api_key: str = Security(x_api_key_header)) -> Dict[str, Any]:
-    """
-    Verify the API key provided in X-API-Key header.
-    
-    This is a dependency that can be used in route definitions to
-    enforce more structured API key authentication.
-    
-    Args:
-        api_key: The API key provided in the X-API-Key header
-        
-    Returns:
-        dict: Information about the API key owner if valid
-        
-    Raises:
-        HTTPException: If the API key is invalid or missing
-    """
-    if api_key not in VALID_API_KEYS:
+    if api_key is None:
+        logger.warning("API key header missing in request")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid API Key",
+            detail="API key is required. Use X-API-Key header.",
             headers={"WWW-Authenticate": "ApiKey"},
         )
-    return VALID_API_KEYS[api_key]
+    
+    # Check if the provided key is valid
+    if api_key not in VALID_KEYS:
+        logger.warning("Unauthorized API access attempt with invalid key")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid API key",
+            headers={"WWW-Authenticate": "ApiKey"},
+        )
+    
+    logger.info("API key validated successfully")
+    return api_key
 
 
-def get_allowed_operations(api_key: str = Depends(verify_api_key)) -> List[str]:
+def verify_x_api_key(request: Request) -> str:
     """
-    Get the list of operations allowed for the API key.
+    Alternative dependency for API key validation from header.
+    
+    This is useful for direct header access in middleware scenarios.
     
     Args:
-        api_key: Validated API key
+        request: FastAPI request object
         
     Returns:
-        List of allowed operations
+        The validated API key
+        
+    Raises:
+        HTTPException: If API key is missing or invalid
     """
-    # Default to all operations
-    return [
-        "style_transfer",
-        "segmentation",
-        "evaluation",
-        "prompts"
-    ]
+    # Try to get key from X-API-Key header
+    api_key = request.headers.get("X-API-Key")
+    
+    # If not found, try api-key header (alternative format)
+    if not api_key:
+        api_key = request.headers.get("api-key")
+    
+    # If still not found, try API_KEY query parameter
+    if not api_key and "api_key" in request.query_params:
+        api_key = request.query_params.get("api_key")
+    
+    # Validate the key
+    if not api_key or api_key not in VALID_KEYS:
+        logger.warning("Unauthorized API access attempt via alternative headers")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or missing API key",
+            headers={"WWW-Authenticate": "ApiKey"},
+        )
+    
+    return api_key
